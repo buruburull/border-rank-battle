@@ -3,6 +3,7 @@ package com.borderrank.battle.command;
 import com.borderrank.battle.BRBPlugin;
 import com.borderrank.battle.manager.RankManager;
 import com.borderrank.battle.model.BRBPlayer;
+import com.borderrank.battle.model.WeaponRP;
 import com.borderrank.battle.util.MessageUtil;
 import org.bukkit.Bukkit;
 import org.bukkit.command.Command;
@@ -14,10 +15,6 @@ import org.bukkit.entity.Player;
 import java.util.ArrayList;
 import java.util.List;
 
-/**
- * Command handler for /rank command.
- * Allows players to manage their ranking and view statistics.
- */
 public class RankCommand implements CommandExecutor, TabCompleter {
 
     @Override
@@ -26,14 +23,11 @@ public class RankCommand implements CommandExecutor, TabCompleter {
             MessageUtil.sendErrorMessage(sender, "This command can only be used by players.");
             return true;
         }
-
         if (args.length == 0) {
             MessageUtil.sendInfoMessage(player, "Usage: /rank <solo|cancel|stats|top>");
             return true;
         }
-
         String subcommand = args[0].toLowerCase();
-
         switch (subcommand) {
             case "solo" -> handleSolo(player);
             case "cancel" -> handleCancel(player);
@@ -41,42 +35,31 @@ public class RankCommand implements CommandExecutor, TabCompleter {
             case "top" -> handleTop(player, args);
             default -> MessageUtil.sendErrorMessage(player, "Unknown subcommand: " + subcommand);
         }
-
         return true;
     }
 
-    /**
-     * Handle /rank solo command - adds player to solo queue.
-     */
     private void handleSolo(Player player) {
         BRBPlugin plugin = BRBPlugin.getInstance();
         if (!plugin.getQueueManager().isInQueue(player.getUniqueId())) {
             plugin.getQueueManager().addToSoloQueue(player.getUniqueId());
-            MessageUtil.sendSuccessMessage(player, "Added to solo queue! Waiting for opponents...");
+            MessageUtil.sendSuccessMessage(player, "ソロキューに追加しました！対戦相手を待っています...");
         } else {
-            MessageUtil.sendErrorMessage(player, "You are already in a queue!");
+            MessageUtil.sendErrorMessage(player, "既にキューに入っています！");
         }
     }
 
-    /**
-     * Handle /rank cancel command - removes player from queue.
-     */
     private void handleCancel(Player player) {
         BRBPlugin plugin = BRBPlugin.getInstance();
         if (plugin.getQueueManager().removePlayer(player.getUniqueId())) {
-            MessageUtil.sendSuccessMessage(player, "Removed from queue.");
+            MessageUtil.sendSuccessMessage(player, "キューから離脱しました。");
         } else {
-            MessageUtil.sendErrorMessage(player, "You are not in a queue!");
+            MessageUtil.sendErrorMessage(player, "キューに入っていません！");
         }
     }
 
-    /**
-     * Handle /rank stats command - shows player's ranking points by weapon type.
-     */
     private void handleStats(Player player, String[] args) {
         BRBPlugin plugin = BRBPlugin.getInstance();
         Player targetPlayer = player;
-
         if (args.length > 1) {
             targetPlayer = Bukkit.getPlayer(args[1]);
             if (targetPlayer == null) {
@@ -84,41 +67,32 @@ public class RankCommand implements CommandExecutor, TabCompleter {
                 return;
             }
         }
-
         RankManager rankManager = plugin.getRankManager();
         BRBPlayer brPlayer = rankManager.getPlayer(targetPlayer.getUniqueId());
-
         if (brPlayer == null) {
             MessageUtil.sendErrorMessage(player, "No data found for player: " + targetPlayer.getName());
             return;
         }
-
-        // Display stats
-        MessageUtil.sendInfoMessage(player, "=== Ranking Stats for " + targetPlayer.getName() + " ===");
-        MessageUtil.sendInfoMessage(player, "Overall Rank: " + rankManager.getHighestRankTier(brPlayer));
-
-        // Display weapon-type stats
+        MessageUtil.sendInfoMessage(player, "=== " + targetPlayer.getName() + " のランク情報 ===");
+        MessageUtil.sendInfoMessage(player, "ランク: " + rankManager.getHighestRankTier(brPlayer));
         var weaponRPs = brPlayer.getWeaponRPs();
         for (var entry : weaponRPs.entrySet()) {
-            MessageUtil.sendInfoMessage(player, entry.getKey().name() + " RP: " + entry.getValue());
+            var wrp = entry.getValue();
+            MessageUtil.sendInfoMessage(player,
+                entry.getKey().name() + " RP: " + wrp.getRp() +
+                " (" + wrp.getWins() + "勝 " + wrp.getLosses() + "敗)");
         }
     }
 
-    /**
-     * Handle /rank top command - shows top 10 ranking.
-     */
     private void handleTop(Player player, String[] args) {
         BRBPlugin plugin = BRBPlugin.getInstance();
         RankManager rankManager = plugin.getRankManager();
-
         List<BRBPlayer> topPlayers = rankManager.getGlobalTopPlayers(10);
-
         if (topPlayers.isEmpty()) {
-            MessageUtil.sendInfoMessage(player, "No ranking data available.");
+            MessageUtil.sendInfoMessage(player, "ランキングデータがありません。");
             return;
         }
-
-        MessageUtil.sendInfoMessage(player, "=== Top 10 Rankings (Overall) ===");
+        MessageUtil.sendInfoMessage(player, "=== トップ10ランキング ===");
         int rank = 1;
         for (BRBPlayer brPlayer : topPlayers) {
             int rp = brPlayer.getTotalRP();
@@ -130,20 +104,16 @@ public class RankCommand implements CommandExecutor, TabCompleter {
     @Override
     public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
         List<String> completions = new ArrayList<>();
-
         if (args.length == 1) {
             completions.add("solo");
             completions.add("cancel");
             completions.add("stats");
             completions.add("top");
-        } else if (args.length == 2) {
-            if ("stats".equalsIgnoreCase(args[0])) {
-                for (Player player : Bukkit.getOnlinePlayers()) {
-                    completions.add(player.getName());
-                }
+        } else if (args.length == 2 && "stats".equalsIgnoreCase(args[0])) {
+            for (Player player : Bukkit.getOnlinePlayers()) {
+                completions.add(player.getName());
             }
         }
-
         return completions;
     }
 }

@@ -20,10 +20,6 @@ import com.borderrank.battle.command.AdminCommand;
 import com.borderrank.battle.arena.MatchManager;
 import org.bukkit.plugin.java.JavaPlugin;
 
-/**
- * Main plugin class for Border Rank Battle.
- * Initializes all managers, commands, and listeners.
- */
 public class BRBPlugin extends JavaPlugin {
 
     private static BRBPlugin instance;
@@ -41,11 +37,8 @@ public class BRBPlugin extends JavaPlugin {
     @Override
     public void onEnable() {
         instance = this;
-
-        // Load configuration
         saveDefaultConfig();
 
-        // Initialize database
         String mysqlHost = getConfig().getString("database.host", "localhost");
         int mysqlPort = getConfig().getInt("database.port", 3306);
         String mysqlDatabase = getConfig().getString("database.name", "brb_game");
@@ -61,7 +54,6 @@ public class BRBPlugin extends JavaPlugin {
             e.printStackTrace();
         }
 
-        // Initialize managers
         triggerRegistry = new TriggerRegistry(this);
         loadoutManager = new LoadoutManager(new LoadoutDAO(databaseManager));
         trionManager = new TrionManager();
@@ -71,115 +63,61 @@ public class BRBPlugin extends JavaPlugin {
         scoreboardManager = new ScoreboardManager();
         matchManager = new MatchManager();
 
-        // Register commands
         getCommand("rank").setExecutor(new RankCommand());
         getCommand("trigger").setExecutor(new TriggerCommand());
         getCommand("team").setExecutor(new TeamCommand());
         getCommand("bradmin").setExecutor(new AdminCommand());
 
-        // Register listeners
         getServer().getPluginManager().registerEvents(new PlayerConnectionListener(), this);
         getServer().getPluginManager().registerEvents(new CombatListener(), this);
         getServer().getPluginManager().registerEvents(new TriggerUseListener(), this);
 
-        // Start ticking tasks
         startTickingTasks();
-
         getLogger().info("Border Rank Battle plugin enabled!");
     }
 
     @Override
     public void onDisable() {
-        // Save all data and close database
         if (databaseManager != null) {
             databaseManager.close();
         }
-
-        // Cancel all tasks
         getServer().getScheduler().cancelTasks(this);
-
         getLogger().info("Border Rank Battle plugin disabled!");
     }
 
-    /**
-     * Start the main ticking tasks.
-     */
     private void startTickingTasks() {
-        // Tick match manager every tick (20 ticks/second = 1 second)
         getServer().getScheduler().scheduleSyncRepeatingTask(this, () -> {
             if (matchManager != null) {
                 matchManager.tick();
             }
         }, 0, 20);
+
+        getServer().getScheduler().scheduleSyncRepeatingTask(this, () -> {
+            if (queueManager == null || matchManager == null) return;
+            java.util.Set<java.util.UUID> matched = queueManager.trySoloMatch(2);
+            if (!matched.isEmpty()) {
+                int matchId = matchManager.createSoloMatch(matched, "arena_default");
+                if (matchId > 0) {
+                    getLogger().info("Solo match #" + matchId + " created with " + matched.size() + " players");
+                    for (java.util.UUID uuid : matched) {
+                        org.bukkit.entity.Player player = getServer().getPlayer(uuid);
+                        if (player != null) {
+                            com.borderrank.battle.util.MessageUtil.sendSuccessMessage(player, "マッチが見つかりました！マッチ #" + matchId);
+                        }
+                    }
+                }
+            }
+        }, 100, 100);
     }
 
-    /**
-     * Get the plugin instance.
-     */
-    public static BRBPlugin getInstance() {
-        return instance;
-    }
-
-    /**
-     * Get the database manager.
-     */
-    public DatabaseManager getDatabaseManager() {
-        return databaseManager;
-    }
-
-    /**
-     * Get the trigger registry.
-     */
-    public TriggerRegistry getTriggerRegistry() {
-        return triggerRegistry;
-    }
-
-    /**
-     * Get the loadout manager.
-     */
-    public LoadoutManager getLoadoutManager() {
-        return loadoutManager;
-    }
-
-    /**
-     * Get the trion manager.
-     */
-    public TrionManager getTrionManager() {
-        return trionManager;
-    }
-
-    /**
-     * Get the rank manager.
-     */
-    public RankManager getRankManager() {
-        return rankManager;
-    }
-
-    /**
-     * Get the queue manager.
-     */
-    public QueueManager getQueueManager() {
-        return queueManager;
-    }
-
-    /**
-     * Get the map manager.
-     */
-    public MapManager getMapManager() {
-        return mapManager;
-    }
-
-    /**
-     * Get the scoreboard manager.
-     */
-    public ScoreboardManager getScoreboardManager() {
-        return scoreboardManager;
-    }
-
-    /**
-     * Get the match manager.
-     */
-    public MatchManager getMatchManager() {
-        return matchManager;
-    }
+    public static BRBPlugin getInstance() { return instance; }
+    public DatabaseManager getDatabaseManager() { return databaseManager; }
+    public TriggerRegistry getTriggerRegistry() { return triggerRegistry; }
+    public LoadoutManager getLoadoutManager() { return loadoutManager; }
+    public TrionManager getTrionManager() { return trionManager; }
+    public RankManager getRankManager() { return rankManager; }
+    public QueueManager getQueueManager() { return queueManager; }
+    public MapManager getMapManager() { return mapManager; }
+    public ScoreboardManager getScoreboardManager() { return scoreboardManager; }
+    public MatchManager getMatchManager() { return matchManager; }
 }
