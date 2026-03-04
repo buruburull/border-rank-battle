@@ -58,7 +58,7 @@ public class AdminCommand implements CommandExecutor, TabCompleter {
         if ("reload".equalsIgnoreCase(args[1])) {
             BRBPlugin plugin = BRBPlugin.getInstance();
             TriggerRegistry registry = plugin.getTriggerRegistry();
-            
+
             if (registry.reloadTriggers()) {
                 MessageUtil.sendSuccessMessage(sender, "Triggers reloaded!");
             } else {
@@ -74,7 +74,7 @@ public class AdminCommand implements CommandExecutor, TabCompleter {
      */
     private void handleForceStart(CommandSender sender) {
         BRBPlugin plugin = BRBPlugin.getInstance();
-        
+
         if (plugin.getQueueManager().startMatch()) {
             MessageUtil.sendSuccessMessage(sender, "Match started!");
         } else {
@@ -114,9 +114,9 @@ public class AdminCommand implements CommandExecutor, TabCompleter {
 
         BRBPlugin plugin = BRBPlugin.getInstance();
         RankManager rankManager = plugin.getRankManager();
-        
+
         rankManager.setPlayerRP(targetPlayer.getUniqueId(), weaponType, value);
-        MessageUtil.sendSuccessMessage(sender, 
+        MessageUtil.sendSuccessMessage(sender,
             "Set " + targetPlayer.getName() + "'s " + weaponType + " RP to " + value);
     }
 

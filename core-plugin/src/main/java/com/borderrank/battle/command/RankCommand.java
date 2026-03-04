@@ -50,7 +50,8 @@ public class RankCommand implements CommandExecutor, TabCompleter {
      */
     private void handleSolo(Player player) {
         BRBPlugin plugin = BRBPlugin.getInstance();
-        if (plugin.getQueueManager().addPlayer(player.getUniqueId(), "solo")) {
+        if (!plugin.getQueueManager().isInQueue(player.getUniqueId())) {
+            plugin.getQueueManager().addToSoloQueue(player.getUniqueId());
             MessageUtil.sendSuccessMessage(player, "Added to solo queue! Waiting for opponents...");
         } else {
             MessageUtil.sendErrorMessage(player, "You are already in a queue!");
@@ -94,12 +95,13 @@ public class RankCommand implements CommandExecutor, TabCompleter {
 
         // Display stats
         MessageUtil.sendInfoMessage(player, "=== Ranking Stats for " + targetPlayer.getName() + " ===");
-        MessageUtil.sendInfoMessage(player, "Overall Rank: " + brPlayer.getRankClass());
-        
-        // Display weapon-type stats (placeholder for weapon types)
-        MessageUtil.sendInfoMessage(player, "Assault Rifle RP: " + brPlayer.getRPByWeapon("ASSAULT_RIFLE"));
-        MessageUtil.sendInfoMessage(player, "Sniper RP: " + brPlayer.getRPByWeapon("SNIPER"));
-        MessageUtil.sendInfoMessage(player, "Trigger RP: " + brPlayer.getRPByWeapon("TRIGGER"));
+        MessageUtil.sendInfoMessage(player, "Overall Rank: " + rankManager.getHighestRankTier(brPlayer));
+
+        // Display weapon-type stats
+        var weaponRPs = brPlayer.getWeaponRPs();
+        for (var entry : weaponRPs.entrySet()) {
+            MessageUtil.sendInfoMessage(player, entry.getKey().name() + " RP: " + entry.getValue());
+        }
     }
 
     /**
@@ -108,19 +110,18 @@ public class RankCommand implements CommandExecutor, TabCompleter {
     private void handleTop(Player player, String[] args) {
         BRBPlugin plugin = BRBPlugin.getInstance();
         RankManager rankManager = plugin.getRankManager();
-        String weaponType = args.length > 1 ? args[1].toUpperCase() : "OVERALL";
 
-        List<BRBPlayer> topPlayers = rankManager.getTopRanked(weaponType, 10);
+        List<BRBPlayer> topPlayers = rankManager.getGlobalTopPlayers(10);
 
         if (topPlayers.isEmpty()) {
             MessageUtil.sendInfoMessage(player, "No ranking data available.");
             return;
         }
 
-        MessageUtil.sendInfoMessage(player, "=== Top 10 Rankings (" + weaponType + ") ===");
+        MessageUtil.sendInfoMessage(player, "=== Top 10 Rankings (Overall) ===");
         int rank = 1;
         for (BRBPlayer brPlayer : topPlayers) {
-            int rp = "OVERALL".equals(weaponType) ? brPlayer.getTotalRP() : brPlayer.getRPByWeapon(weaponType);
+            int rp = brPlayer.getTotalRP();
             MessageUtil.sendInfoMessage(player, "#" + rank + " " + brPlayer.getPlayerName() + " - " + rp + " RP");
             rank++;
         }
@@ -136,12 +137,7 @@ public class RankCommand implements CommandExecutor, TabCompleter {
             completions.add("stats");
             completions.add("top");
         } else if (args.length == 2) {
-            if ("top".equalsIgnoreCase(args[0])) {
-                completions.add("ASSAULT_RIFLE");
-                completions.add("SNIPER");
-                completions.add("TRIGGER");
-                completions.add("OVERALL");
-            } else if ("stats".equalsIgnoreCase(args[0])) {
+            if ("stats".equalsIgnoreCase(args[0])) {
                 for (Player player : Bukkit.getOnlinePlayers()) {
                     completions.add(player.getName());
                 }

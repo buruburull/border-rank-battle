@@ -1,6 +1,8 @@
 package com.borderrank.battle;
 
 import com.borderrank.battle.database.DatabaseManager;
+import com.borderrank.battle.database.LoadoutDAO;
+import com.borderrank.battle.database.PlayerDAO;
 import com.borderrank.battle.listener.CombatListener;
 import com.borderrank.battle.listener.PlayerConnectionListener;
 import com.borderrank.battle.listener.TriggerUseListener;
@@ -39,43 +41,43 @@ public class BRBPlugin extends JavaPlugin {
     @Override
     public void onEnable() {
         instance = this;
-        
+
         // Load configuration
         saveDefaultConfig();
-        
+
         // Initialize database
         String mysqlHost = getConfig().getString("mysql.host", "localhost");
         int mysqlPort = getConfig().getInt("mysql.port", 3306);
         String mysqlDatabase = getConfig().getString("mysql.database", "brb");
         String mysqlUsername = getConfig().getString("mysql.username", "root");
         String mysqlPassword = getConfig().getString("mysql.password", "");
-        
+
         databaseManager = new DatabaseManager(mysqlHost, mysqlPort, mysqlDatabase, mysqlUsername, mysqlPassword);
-        
+
         // Initialize managers
         triggerRegistry = new TriggerRegistry(this);
-        loadoutManager = new LoadoutManager(databaseManager);
+        loadoutManager = new LoadoutManager(new LoadoutDAO(databaseManager));
         trionManager = new TrionManager();
-        rankManager = new RankManager(databaseManager);
+        rankManager = new RankManager(new PlayerDAO(databaseManager));
         queueManager = new QueueManager();
         mapManager = new MapManager(this);
         scoreboardManager = new ScoreboardManager();
         matchManager = new MatchManager();
-        
+
         // Register commands
         getCommand("rank").setExecutor(new RankCommand());
         getCommand("trigger").setExecutor(new TriggerCommand());
         getCommand("team").setExecutor(new TeamCommand());
         getCommand("bradmin").setExecutor(new AdminCommand());
-        
+
         // Register listeners
         getServer().getPluginManager().registerEvents(new PlayerConnectionListener(), this);
         getServer().getPluginManager().registerEvents(new CombatListener(), this);
         getServer().getPluginManager().registerEvents(new TriggerUseListener(), this);
-        
+
         // Start ticking tasks
         startTickingTasks();
-        
+
         getLogger().info("Border Rank Battle plugin enabled!");
     }
 
@@ -85,10 +87,10 @@ public class BRBPlugin extends JavaPlugin {
         if (databaseManager != null) {
             databaseManager.close();
         }
-        
+
         // Cancel all tasks
         getServer().getScheduler().cancelTasks(this);
-        
+
         getLogger().info("Border Rank Battle plugin disabled!");
     }
 

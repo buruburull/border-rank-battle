@@ -79,12 +79,30 @@ public class BRBPlayer {
     }
 
     /**
+     * Gets the player's name (alias for getName).
+     *
+     * @return the player's name
+     */
+    public String getPlayerName() {
+        return getName();
+    }
+
+    /**
      * Sets the player's name.
      *
      * @param name the new name
      */
     public void setName(String name) {
         this.name = name;
+    }
+
+    /**
+     * Sets the player's name (alias for setName).
+     *
+     * @param name the new name
+     */
+    public void setPlayerName(String name) {
+        setName(name);
     }
 
     /**
@@ -151,6 +169,15 @@ public class BRBPlayer {
     }
 
     /**
+     * Gets the weapon RPs as a map.
+     *
+     * @return the weapon RP map
+     */
+    public Map<WeaponType, WeaponRP> getWeaponRPs() {
+        return weaponRPMap;
+    }
+
+    /**
      * Gets the weapon RP for a specific weapon type.
      *
      * @param type the weapon type
@@ -201,6 +228,17 @@ public class BRBPlayer {
     public int getTotalLosses() {
         return weaponRPMap.values().stream()
                 .mapToInt(WeaponRP::getLosses)
+                .sum();
+    }
+
+    /**
+     * Gets the total RP across all weapon types.
+     *
+     * @return the total RP
+     */
+    public int getTotalRP() {
+        return weaponRPMap.values().stream()
+                .mapToInt(WeaponRP::getRp)
                 .sum();
     }
 

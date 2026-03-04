@@ -7,7 +7,7 @@ import java.util.*;
  * Provides queue operations and match formation logic.
  */
 public class QueueManager {
-    
+
     private final Set<UUID> soloQueue = new HashSet<>();
     private final Map<Integer, Set<UUID>> teamQueue = new HashMap<>();
     private int nextTeamId = 0;
@@ -61,7 +61,7 @@ public class QueueManager {
      */
     public void removeFromQueues(UUID playerId) {
         soloQueue.remove(playerId);
-        
+
         var teamIdsToRemove = new ArrayList<Integer>();
         for (var entry : teamQueue.entrySet()) {
             if (entry.getValue().remove(playerId)) {
@@ -70,10 +70,37 @@ public class QueueManager {
                 }
             }
         }
-        
+
         for (int teamId : teamIdsToRemove) {
             teamQueue.remove(teamId);
         }
+    }
+
+    /**
+     * Removes a player from queue (alias for removeFromQueues).
+     *
+     * @param playerId the UUID of the player
+     * @return true if the player was in a queue
+     */
+    public boolean removePlayer(UUID playerId) {
+        boolean inSolo = soloQueue.remove(playerId);
+        boolean inTeam = false;
+
+        var teamIdsToRemove = new ArrayList<Integer>();
+        for (var entry : teamQueue.entrySet()) {
+            if (entry.getValue().remove(playerId)) {
+                inTeam = true;
+                if (entry.getValue().isEmpty()) {
+                    teamIdsToRemove.add(entry.getKey());
+                }
+            }
+        }
+
+        for (int teamId : teamIdsToRemove) {
+            teamQueue.remove(teamId);
+        }
+
+        return inSolo || inTeam;
     }
 
     /**
@@ -86,7 +113,7 @@ public class QueueManager {
         if (soloQueue.contains(playerId)) {
             return true;
         }
-        
+
         return teamQueue.values().stream()
                 .anyMatch(team -> team.contains(playerId));
     }
@@ -112,15 +139,15 @@ public class QueueManager {
         if (soloQueue.size() < minPlayers) {
             return new HashSet<>();
         }
-        
+
         Set<UUID> matched = new HashSet<>();
         var iterator = soloQueue.iterator();
-        
+
         for (int i = 0; i < minPlayers && iterator.hasNext(); i++) {
             matched.add(iterator.next());
             iterator.remove();
         }
-        
+
         return matched;
     }
 
@@ -135,17 +162,28 @@ public class QueueManager {
         if (teamQueue.size() < minTeams) {
             return new HashSet<>();
         }
-        
+
         Set<Integer> matched = new HashSet<>();
         var iterator = teamQueue.keySet().iterator();
-        
+
         for (int i = 0; i < minTeams && iterator.hasNext(); i++) {
             int teamId = iterator.next();
             matched.add(teamId);
             iterator.remove();
         }
-        
+
         return matched;
+    }
+
+    /**
+     * Starts a match with current queue members.
+     *
+     * @return true if a match was started, false if not enough players
+     */
+    public boolean startMatch() {
+        // Try to start with minimum 2 players
+        Set<UUID> matched = trySoloMatch(2);
+        return !matched.isEmpty();
     }
 
     /**
@@ -218,7 +256,7 @@ public class QueueManager {
             int position = new ArrayList<>(soloQueue).indexOf(playerId);
             return (position + 1) * 30L;
         }
-        
+
         int teamPosition = 0;
         for (int teamId : teamQueue.keySet()) {
             if (teamQueue.get(teamId).contains(playerId)) {
@@ -226,7 +264,7 @@ public class QueueManager {
             }
             teamPosition++;
         }
-        
+
         return -1;
     }
 }

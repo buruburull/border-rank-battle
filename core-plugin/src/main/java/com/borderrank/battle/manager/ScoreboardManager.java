@@ -14,7 +14,7 @@ import java.util.*;
  * Uses Bukkit Scoreboard API with team-based line management to minimize flicker.
  */
 public class ScoreboardManager {
-    
+
     private final Map<UUID, Scoreboard> playerScoreboards = new HashMap<>();
     private final Map<UUID, Objective> playerObjectives = new HashMap<>();
 
@@ -27,7 +27,7 @@ public class ScoreboardManager {
      */
     public void createMatchScoreboard(Player player, String mapName, int timeRemaining) {
         UUID playerId = player.getUniqueId();
-        
+
         // Create new scoreboard
         Scoreboard scoreboard = Bukkit.getScoreboardManager().getNewScoreboard();
         Objective objective = scoreboard.registerNewObjective(
@@ -36,14 +36,14 @@ public class ScoreboardManager {
                 "§6Border Rank Battle"
         );
         objective.setDisplaySlot(DisplaySlot.SIDEBAR);
-        
+
         // Store references
         playerScoreboards.put(playerId, scoreboard);
         playerObjectives.put(playerId, objective);
-        
+
         // Set player's scoreboard
         player.setScoreboard(scoreboard);
-        
+
         // Initialize scoreboard lines
         updateScoreboard(player, 0, 0, timeRemaining, 0.0);
     }
@@ -62,42 +62,59 @@ public class ScoreboardManager {
         UUID playerId = player.getUniqueId();
         Objective objective = playerObjectives.get(playerId);
         Scoreboard scoreboard = playerScoreboards.get(playerId);
-        
+
         if (objective == null || scoreboard == null) {
             return;
         }
-        
+
         // Format time as MM:SS
         String timeFormatted = String.format("%02d:%02d", timeRemaining / 60, timeRemaining % 60);
-        
+
         // Clear existing scores to prepare for update
         for (String entry : scoreboard.getEntries()) {
             if (!entry.startsWith("§")) {
                 scoreboard.resetScores(entry);
             }
         }
-        
+
         // Line 1: Time remaining (score 9)
         setScoreboardLine(scoreboard, objective, "§e⏱ Time: §f" + timeFormatted, 9);
-        
+
         // Line 2: Players alive (score 8)
         setScoreboardLine(scoreboard, objective, "§b👥 Alive: §f" + alive, 8);
-        
+
         // Line 3: Kills (score 7)
         setScoreboardLine(scoreboard, objective, "§c⚔ Kills: §f" + kills, 7);
-        
+
         // Line 4: Spacer (score 6)
         setScoreboardLine(scoreboard, objective, "", 6);
-        
+
         // Line 5: Trion leak (score 5)
         String leakColor = trionLeak > 1.0 ? "§c" : "§e";
         setScoreboardLine(scoreboard, objective, leakColor + "Trion Leak: §f" + String.format("%.1f", trionLeak), 5);
-        
+
         // Line 6: Spacer (score 4)
         setScoreboardLine(scoreboard, objective, "  ", 4);
-        
+
         // Line 7: Footer (score 3)
         setScoreboardLine(scoreboard, objective, "§7world.borderrank.battle", 3);
+    }
+
+    /**
+     * Updates a player's score on the scoreboard.
+     *
+     * @param player the player to update
+     * @param kills the kill count
+     */
+    public void updatePlayerScore(Player player, int kills) {
+        UUID playerId = player.getUniqueId();
+        Objective objective = playerObjectives.get(playerId);
+
+        if (objective != null) {
+            // Update kills line
+            setScoreboardLine(playerScoreboards.get(playerId), objective,
+                "§c⚔ Kills: §f" + kills, 7);
+        }
     }
 
     /**
@@ -111,24 +128,24 @@ public class ScoreboardManager {
      */
     private void setScoreboardLine(Scoreboard scoreboard, Objective objective, String lineText, int score) {
         String entry = "line_" + score;
-        
+
         // Remove old entry if it exists
         if (scoreboard.getEntries().contains(entry)) {
             scoreboard.resetScores(entry);
         }
-        
+
         // Create or get team for this line
         Team team = scoreboard.getTeam(entry);
         if (team == null) {
             team = scoreboard.registerNewTeam(entry);
         }
-        
+
         // Clear existing members and set new ones
         for (String member : new HashSet<>(team.getEntries())) {
             team.removeEntry(member);
         }
         team.addEntry(lineText);
-        
+
         // Set score
         objective.getScore(lineText).setScore(score);
     }
@@ -140,10 +157,10 @@ public class ScoreboardManager {
      */
     public void removeScoreboard(Player player) {
         UUID playerId = player.getUniqueId();
-        
+
         // Restore default scoreboard
         player.setScoreboard(Bukkit.getScoreboardManager().getMainScoreboard());
-        
+
         playerScoreboards.remove(playerId);
         playerObjectives.remove(playerId);
     }

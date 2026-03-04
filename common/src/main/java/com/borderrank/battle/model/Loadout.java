@@ -1,8 +1,11 @@
 package com.borderrank.battle.model;
 
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 /**
  * Represents a player's loadout with up to 8 trigger slots.
@@ -12,34 +15,51 @@ public class Loadout {
     private static final int SLOT_COUNT = 8;
     private static final int MAIN_SLOTS = 4;
 
+    private final UUID playerUuid;
     private final String name;
-    private final String[] slots;
+    private final List<String> slots;
     private int totalCost;
 
     /**
      * Constructs a Loadout instance.
      *
+     * @param playerUuid the player's UUID
      * @param name the loadout name
      */
-    public Loadout(String name) {
+    public Loadout(UUID playerUuid, String name) {
+        this.playerUuid = playerUuid;
         this.name = name;
-        this.slots = new String[SLOT_COUNT];
+        this.slots = new ArrayList<>(SLOT_COUNT);
+        for (int i = 0; i < SLOT_COUNT; i++) {
+            this.slots.add("");
+        }
         this.totalCost = 0;
     }
 
     /**
      * Constructs a Loadout instance with initial slot data.
      *
+     * @param playerUuid the player's UUID
      * @param name the loadout name
      * @param slots the initial slots (must be size 8)
      */
-    public Loadout(String name, String[] slots) {
+    public Loadout(UUID playerUuid, String name, String[] slots) {
         if (slots.length != SLOT_COUNT) {
             throw new IllegalArgumentException("Slots array must have exactly " + SLOT_COUNT + " elements");
         }
+        this.playerUuid = playerUuid;
         this.name = name;
-        this.slots = slots.clone();
+        this.slots = new ArrayList<>(Arrays.asList(slots));
         this.totalCost = 0;
+    }
+
+    /**
+     * Gets the player's UUID.
+     *
+     * @return the player UUID
+     */
+    public UUID getPlayerUuid() {
+        return playerUuid;
     }
 
     /**
@@ -62,30 +82,30 @@ public class Loadout {
         if (slot < 0 || slot >= SLOT_COUNT) {
             throw new IndexOutOfBoundsException("Slot must be between 0 and " + (SLOT_COUNT - 1));
         }
-        return slots[slot];
+        return slots.get(slot);
     }
 
     /**
      * Sets a trigger at the specified slot.
      *
      * @param slot the slot index (0-7)
-     * @param triggerId the trigger ID, or null to clear the slot
+     * @param triggerId the trigger ID, or empty string to clear the slot
      * @throws IndexOutOfBoundsException if slot is out of range
      */
     public void setSlot(int slot, String triggerId) {
         if (slot < 0 || slot >= SLOT_COUNT) {
             throw new IndexOutOfBoundsException("Slot must be between 0 and " + (SLOT_COUNT - 1));
         }
-        slots[slot] = triggerId;
+        slots.set(slot, triggerId);
     }
 
     /**
      * Gets all slots.
      *
-     * @return the slots array
+     * @return the slots list
      */
-    public String[] getSlots() {
-        return slots.clone();
+    public List<String> getSlots() {
+        return Collections.unmodifiableList(slots);
     }
 
     /**
@@ -118,6 +138,20 @@ public class Loadout {
     }
 
     /**
+     * Checks if this loadout is active (has at least one non-empty slot).
+     *
+     * @return true if any slot is non-empty, false otherwise
+     */
+    public boolean isActive() {
+        for (String slot : slots) {
+            if (slot != null && !slot.isEmpty()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
      * Checks if this loadout is valid based on the maximum TP.
      *
      * @param maxTP the maximum TP available
@@ -135,8 +169,9 @@ public class Loadout {
     public List<String> getMainTriggers() {
         List<String> mainTriggers = new ArrayList<>();
         for (int i = 0; i < MAIN_SLOTS; i++) {
-            if (slots[i] != null && !slots[i].isEmpty()) {
-                mainTriggers.add(slots[i]);
+            String slot = slots.get(i);
+            if (slot != null && !slot.isEmpty()) {
+                mainTriggers.add(slot);
             }
         }
         return mainTriggers;
@@ -150,15 +185,16 @@ public class Loadout {
     public List<String> getSubTriggers() {
         List<String> subTriggers = new ArrayList<>();
         for (int i = MAIN_SLOTS; i < SLOT_COUNT; i++) {
-            if (slots[i] != null && !slots[i].isEmpty()) {
-                subTriggers.add(slots[i]);
+            String slot = slots.get(i);
+            if (slot != null && !slot.isEmpty()) {
+                subTriggers.add(slot);
             }
         }
         return subTriggers;
     }
 
     /**
-     * Gets the count of non-null slots.
+     * Gets the count of non-empty slots.
      *
      * @return the number of filled slots
      */

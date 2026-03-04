@@ -5,10 +5,11 @@ import com.borderrank.battle.manager.LoadoutManager;
 import com.borderrank.battle.manager.RankManager;
 import com.borderrank.battle.manager.ScoreboardManager;
 import com.borderrank.battle.manager.TrionManager;
-import com.borderrank.battle.model.Trigger;
+import com.borderrank.battle.model.Loadout;
 import com.borderrank.battle.util.MessageUtil;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
+import org.bukkit.Material;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 
@@ -88,25 +89,29 @@ public class ArenaInstance {
 
                 // Clear inventory and give trigger items
                 player.getInventory().clear();
-                List<Trigger> loadout = loadoutManager.getLoadout(uuid);
-                
-                // Add triggers to hotbar (slots 0-7)
-                for (int i = 0; i < Math.min(loadout.size(), 8); i++) {
-                    Trigger trigger = loadout.get(i);
-                    if (trigger != null) {
-                        ItemStack item = new ItemStack(trigger.getMaterial());
-                        player.getInventory().setItem(i, item);
+
+                // Get active loadout
+                Loadout loadout = loadoutManager.getActiveLoadout(uuid);
+                if (loadout != null) {
+                    List<String> slots = loadout.getSlots();
+                    // Add triggers to hotbar (slots 0-7)
+                    for (int i = 0; i < Math.min(slots.size(), 8); i++) {
+                        String triggerId = slots.get(i);
+                        if (triggerId != null && !triggerId.isEmpty()) {
+                            ItemStack item = new ItemStack(Material.DIAMOND_SWORD);
+                            player.getInventory().setItem(i, item);
+                        }
                     }
                 }
 
                 // Initialize trion for this match
-                trionManager.initializePlayer(uuid, 1000);
+                trionManager.initPlayer(uuid, 1000);
 
                 // Disable natural regen
                 player.setHealthScale(20);
 
-                MessageUtil.sendInfoMessage(player, "Match starting! Countdown: " + countdownRemaining);
-                
+                MessageUtil.sendMessage(player, "Match starting! Countdown: " + countdownRemaining);
+
                 spawnIndex++;
             }
         }
@@ -162,7 +167,7 @@ public class ArenaInstance {
             for (UUID uuid : players) {
                 Player player = Bukkit.getPlayer(uuid);
                 if (player != null) {
-                    MessageUtil.sendInfoMessage(player, "Starting in " + countdownRemaining + "...");
+                    MessageUtil.sendMessage(player, "Starting in " + countdownRemaining + "...");
                 }
             }
         }
@@ -224,10 +229,10 @@ public class ArenaInstance {
 
             Player player = Bukkit.getPlayer(uuid);
             if (player != null) {
-                MessageUtil.sendSuccessMessage(player, 
-                    "Match ended! Placement: #" + placement + " | Kills: " + playerKills + 
+                MessageUtil.sendSuccessMessage(player,
+                    "Match ended! Placement: #" + placement + " | Kills: " + playerKills +
                     " | RP Gained: +" + rpGain);
-                
+
                 // Teleport to lobby
                 Location lobbyLoc = new Location(player.getWorld(), 0, 100, 0);
                 player.teleport(lobbyLoc);
@@ -245,7 +250,7 @@ public class ArenaInstance {
                     Map.Entry<UUID, Integer> entry = sortedPlayers.get(i);
                     Player p = Bukkit.getPlayer(entry.getKey());
                     if (p != null) {
-                        MessageUtil.sendInfoMessage(player, 
+                        MessageUtil.sendInfoMessage(player,
                             "#" + (i + 1) + " " + p.getName() + " - " + entry.getValue() + " kills");
                     }
                 }

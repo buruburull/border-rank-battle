@@ -6,6 +6,7 @@ import net.md_5.bungee.api.ChatColor;
  * Represents player rank classes with display names and colors.
  */
 public enum RankClass {
+    UNRANKED("未所属", ChatColor.WHITE),
     C("C級", ChatColor.GRAY),
     B("B級", ChatColor.BLUE),
     A("A級", ChatColor.GOLD),

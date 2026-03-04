@@ -2,6 +2,7 @@ package com.borderrank.battle.util;
 
 import net.md_5.bungee.api.ChatColor;
 import org.bukkit.Bukkit;
+import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 
 /**
@@ -33,6 +34,29 @@ public final class MessageUtil {
     }
 
     /**
+     * Sends a prefixed message to a player (delegating to send method).
+     *
+     * @param player the player to send the message to
+     * @param message the message content
+     */
+    public static void sendMessage(Player player, String message) {
+        send(player, message);
+    }
+
+    /**
+     * Sends a prefixed message to a command sender.
+     *
+     * @param sender the command sender to send the message to
+     * @param message the message content
+     */
+    public static void sendMessage(CommandSender sender, String message) {
+        if (sender == null) {
+            return;
+        }
+        sender.sendMessage(PREFIX + message);
+    }
+
+    /**
      * Sends an error message to a player in red.
      *
      * @param player the player to send the message to
@@ -43,6 +67,39 @@ public final class MessageUtil {
             return;
         }
         player.sendMessage(PREFIX + ChatColor.RED + message + ChatColor.RESET);
+    }
+
+    /**
+     * Sends an error message to a command sender in red.
+     *
+     * @param sender the command sender to send the message to
+     * @param message the error message content
+     */
+    public static void sendError(CommandSender sender, String message) {
+        if (sender == null) {
+            return;
+        }
+        sender.sendMessage(PREFIX + ChatColor.RED + message + ChatColor.RESET);
+    }
+
+    /**
+     * Sends an error message to a player (alias for sendError).
+     *
+     * @param player the player to send the message to
+     * @param message the error message content
+     */
+    public static void sendErrorMessage(Player player, String message) {
+        sendError(player, message);
+    }
+
+    /**
+     * Sends an error message to a command sender (alias for sendError).
+     *
+     * @param sender the command sender to send the message to
+     * @param message the error message content
+     */
+    public static void sendErrorMessage(CommandSender sender, String message) {
+        sendError(sender, message);
     }
 
     /**
@@ -127,6 +184,39 @@ public final class MessageUtil {
     }
 
     /**
+     * Sends a success message to a command sender in green.
+     *
+     * @param sender the command sender to send the message to
+     * @param message the success message content
+     */
+    public static void sendSuccess(CommandSender sender, String message) {
+        if (sender == null) {
+            return;
+        }
+        sender.sendMessage(PREFIX + ChatColor.GREEN + message + ChatColor.RESET);
+    }
+
+    /**
+     * Sends a success message to a player (alias for sendSuccess).
+     *
+     * @param player the player to send the message to
+     * @param message the success message content
+     */
+    public static void sendSuccessMessage(Player player, String message) {
+        sendSuccess(player, message);
+    }
+
+    /**
+     * Sends a success message to a command sender (alias for sendSuccess).
+     *
+     * @param sender the command sender to send the message to
+     * @param message the success message content
+     */
+    public static void sendSuccessMessage(CommandSender sender, String message) {
+        sendSuccess(sender, message);
+    }
+
+    /**
      * Sends an info message to a player in blue.
      *
      * @param player the player to send the message to
@@ -140,6 +230,39 @@ public final class MessageUtil {
     }
 
     /**
+     * Sends an info message to a command sender in blue.
+     *
+     * @param sender the command sender to send the message to
+     * @param message the info message content
+     */
+    public static void sendInfo(CommandSender sender, String message) {
+        if (sender == null) {
+            return;
+        }
+        sender.sendMessage(PREFIX + ChatColor.AQUA + message + ChatColor.RESET);
+    }
+
+    /**
+     * Sends an info message to a player (alias for sendInfo).
+     *
+     * @param player the player to send the message to
+     * @param message the info message content
+     */
+    public static void sendInfoMessage(Player player, String message) {
+        sendInfo(player, message);
+    }
+
+    /**
+     * Sends an info message to a command sender (alias for sendInfo).
+     *
+     * @param sender the command sender to send the message to
+     * @param message the info message content
+     */
+    public static void sendInfoMessage(CommandSender sender, String message) {
+        sendInfo(sender, message);
+    }
+
+    /**
      * Sends a warning message to a player in yellow.
      *
      * @param player the player to send the message to
@@ -150,6 +273,19 @@ public final class MessageUtil {
             return;
         }
         player.sendMessage(PREFIX + ChatColor.YELLOW + message + ChatColor.RESET);
+    }
+
+    /**
+     * Sends a warning message to a command sender in yellow.
+     *
+     * @param sender the command sender to send the message to
+     * @param message the warning message content
+     */
+    public static void sendWarning(CommandSender sender, String message) {
+        if (sender == null) {
+            return;
+        }
+        sender.sendMessage(PREFIX + ChatColor.YELLOW + message + ChatColor.RESET);
     }
 
     /**

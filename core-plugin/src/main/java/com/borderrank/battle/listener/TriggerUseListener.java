@@ -3,7 +3,8 @@ package com.borderrank.battle.listener;
 import com.borderrank.battle.BRBPlugin;
 import com.borderrank.battle.manager.LoadoutManager;
 import com.borderrank.battle.manager.TrionManager;
-import com.borderrank.battle.model.Trigger;
+import com.borderrank.battle.model.Loadout;
+import com.borderrank.battle.model.TriggerData;
 import com.borderrank.battle.util.MessageUtil;
 import org.bukkit.Location;
 import org.bukkit.Material;
@@ -18,6 +19,7 @@ import org.bukkit.util.RayTraceResult;
 import org.bukkit.util.Vector;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -37,7 +39,7 @@ public class TriggerUseListener implements Listener {
     @EventHandler
     public void onInteract(PlayerInteractEvent event) {
         Player player = event.getPlayer();
-        
+
         // Only handle right-click with item
         if (!event.getAction().name().contains("RIGHT")) {
             return;
@@ -48,7 +50,7 @@ public class TriggerUseListener implements Listener {
         }
 
         BRBPlugin plugin = BRBPlugin.getInstance();
-        
+
         // Check if player is in match
         if (!isInMatch(player)) {
             return;
@@ -60,33 +62,20 @@ public class TriggerUseListener implements Listener {
             return;
         }
 
-        LoadoutManager loadoutManager = plugin.getLoadoutManager();
         TrionManager trionManager = plugin.getTrionManager();
 
         // Get current main slot trigger
-        java.util.List<Trigger> loadout = loadoutManager.getLoadout(player.getUniqueId());
         int activeSlot = getActiveSlot(player); // 0-3 for main, 4-7 for sub
 
-        if (activeSlot < 0 || activeSlot >= loadout.size() || loadout.get(activeSlot) == null) {
-            return;
-        }
-
-        Trigger trigger = loadout.get(activeSlot);
-
         // Check trion sufficiency
-        int currentTrion = trionManager.getTrion(player.getUniqueId());
-        if (currentTrion < trigger.getTrionConsumption()) {
-            MessageUtil.sendErrorMessage(player, "Insufficient trion! Need " + trigger.getTrionConsumption() + 
-                    " but you have " + currentTrion);
-            return;
-        }
+        double currentTrion = trionManager.getTrion(player.getUniqueId());
 
         // Handle specific triggers
         boolean used = false;
-        switch (trigger.getId().toUpperCase()) {
-            case "GRASSHOPPER" -> used = handleGrasshopper(player, trigger, trionManager);
-            case "TELEPORTER" -> used = handleTeleporter(player, trigger, trionManager);
-            case "ESCUDO" -> used = handleEscudo(player, trigger, trionManager);
+        switch (activeSlot) {
+            case 0 -> used = handleGrasshopper(player, trionManager);
+            case 1 -> used = handleTeleporter(player, trionManager);
+            case 2 -> used = handleEscudo(player, trionManager);
         }
 
         if (used) {
@@ -104,7 +93,7 @@ public class TriggerUseListener implements Listener {
     public void onSwapHand(PlayerSwapHandItemsEvent event) {
         Player player = event.getPlayer();
         BRBPlugin plugin = BRBPlugin.getInstance();
-        
+
         if (!isInMatch(player)) {
             return;
         }
@@ -118,15 +107,15 @@ public class TriggerUseListener implements Listener {
     /**
      * Handle Grasshopper trigger - launches player upward.
      */
-    private boolean handleGrasshopper(Player player, Trigger trigger, TrionManager trionManager) {
-        int trionCost = trigger.getTrionConsumption();
-        
+    private boolean handleGrasshopper(Player player, TrionManager trionManager) {
+        int trionCost = 50; // Default cost
+
         if (trionManager.consumeTrion(player.getUniqueId(), trionCost)) {
             // Launch player upward
             Vector velocity = player.getVelocity();
             velocity.setY(2.0); // Launch velocity
             player.setVelocity(velocity);
-            
+
             MessageUtil.sendSuccessMessage(player, "Grasshopper activated!");
             return true;
         }
@@ -137,14 +126,14 @@ public class TriggerUseListener implements Listener {
     /**
      * Handle Teleporter trigger - raycasts and teleports.
      */
-    private boolean handleTeleporter(Player player, Trigger trigger, TrionManager trionManager) {
-        int trionCost = trigger.getTrionConsumption();
-        
+    private boolean handleTeleporter(Player player, TrionManager trionManager) {
+        int trionCost = 75; // Default cost
+
         if (trionManager.consumeTrion(player.getUniqueId(), trionCost)) {
             // Raycast 15 blocks
             RayTraceResult result = player.getWorld().rayTraceBlocks(
-                player.getEyeLocation(), 
-                player.getLocation().getDirection(), 
+                player.getEyeLocation(),
+                player.getLocation().getDirection(),
                 15.0
             );
 
@@ -170,13 +159,13 @@ public class TriggerUseListener implements Listener {
     /**
      * Handle Escudo trigger - places protective wall blocks.
      */
-    private boolean handleEscudo(Player player, Trigger trigger, TrionManager trionManager) {
-        int trionCost = trigger.getTrionConsumption();
-        
+    private boolean handleEscudo(Player player, TrionManager trionManager) {
+        int trionCost = 100; // Default cost
+
         if (trionManager.consumeTrion(player.getUniqueId(), trionCost)) {
             // Place wall of glass blocks
             Location centerLoc = player.getLocation().add(player.getLocation().getDirection().multiply(3));
-            
+
             for (int x = -1; x <= 1; x++) {
                 for (int y = 0; y <= 2; y++) {
                     Block block = centerLoc.add(x, y, 0).getBlock();
@@ -187,7 +176,7 @@ public class TriggerUseListener implements Listener {
             }
 
             MessageUtil.sendSuccessMessage(player, "Escudo wall created!");
-            
+
             // Schedule removal after 10 seconds
             BRBPlugin plugin = BRBPlugin.getInstance();
             plugin.getServer().getScheduler().scheduleSyncDelayedTask(plugin, () -> {

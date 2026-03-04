@@ -66,15 +66,15 @@ public class TeamCommand implements CommandExecutor, TabCompleter {
         }
 
         // Check rank requirement (B rank or higher)
-        String rankClass = brPlayer.getRankClass();
-        if (!isRankBOrHigher(rankClass)) {
+        String rankTier = rankManager.getHighestRankTier(brPlayer);
+        if (!isRankBOrHigher(rankTier)) {
             MessageUtil.sendErrorMessage(player, "You need B rank or higher to create a team!");
             return;
         }
 
         String teamName = args[1];
         Team team = new Team(teamName, player.getUniqueId());
-        
+
         // Store team (this would typically be saved to database)
         if (rankManager.createTeam(team)) {
             MessageUtil.sendSuccessMessage(player, "Team '" + teamName + "' created!");
@@ -94,7 +94,7 @@ public class TeamCommand implements CommandExecutor, TabCompleter {
 
         BRBPlugin plugin = BRBPlugin.getInstance();
         RankManager rankManager = plugin.getRankManager();
-        
+
         Player targetPlayer = Bukkit.getPlayer(args[1]);
         if (targetPlayer == null) {
             MessageUtil.sendErrorMessage(player, "Player not found: " + args[1]);
@@ -126,7 +126,7 @@ public class TeamCommand implements CommandExecutor, TabCompleter {
     private void handleLeave(Player player) {
         BRBPlugin plugin = BRBPlugin.getInstance();
         RankManager rankManager = plugin.getRankManager();
-        
+
         Team team = rankManager.getPlayerTeam(player.getUniqueId());
         if (team == null) {
             MessageUtil.sendErrorMessage(player, "You are not in a team!");
@@ -135,7 +135,7 @@ public class TeamCommand implements CommandExecutor, TabCompleter {
 
         if (team.removeMember(player.getUniqueId())) {
             MessageUtil.sendSuccessMessage(player, "You left the team.");
-            
+
             // If player was leader and team is now empty, delete team
             if (team.getMembers().isEmpty()) {
                 rankManager.deleteTeam(team.getName());
@@ -151,7 +151,7 @@ public class TeamCommand implements CommandExecutor, TabCompleter {
     private void handleInfo(Player player, String[] args) {
         BRBPlugin plugin = BRBPlugin.getInstance();
         RankManager rankManager = plugin.getRankManager();
-        
+
         Team team;
         if (args.length > 1) {
             team = rankManager.getTeamByName(args[1]);
@@ -167,7 +167,7 @@ public class TeamCommand implements CommandExecutor, TabCompleter {
         MessageUtil.sendInfoMessage(player, "=== Team: " + team.getName() + " ===");
         MessageUtil.sendInfoMessage(player, "Leader: " + Bukkit.getOfflinePlayer(team.getLeaderId()).getName());
         MessageUtil.sendInfoMessage(player, "Members: " + team.getMembers().size());
-        
+
         int totalRP = 0;
         for (UUID memberId : team.getMembers()) {
             BRBPlayer member = rankManager.getPlayer(memberId);
@@ -175,15 +175,15 @@ public class TeamCommand implements CommandExecutor, TabCompleter {
                 totalRP += member.getTotalRP();
             }
         }
-        
+
         MessageUtil.sendInfoMessage(player, "Team RP: " + totalRP);
     }
 
     /**
      * Check if a rank is B or higher.
      */
-    private boolean isRankBOrHigher(String rankClass) {
-        return rankClass.equals("S") || rankClass.equals("A") || rankClass.equals("B");
+    private boolean isRankBOrHigher(String rankTier) {
+        return rankTier.equals("S") || rankTier.equals("A") || rankTier.equals("B");
     }
 
     @Override

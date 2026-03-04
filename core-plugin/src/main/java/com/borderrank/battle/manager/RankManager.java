@@ -2,6 +2,8 @@ package com.borderrank.battle.manager;
 
 import com.borderrank.battle.database.PlayerDAO;
 import com.borderrank.battle.model.BRBPlayer;
+import com.borderrank.battle.model.Team;
+import com.borderrank.battle.model.WeaponRP;
 import com.borderrank.battle.model.WeaponType;
 
 import java.util.*;
@@ -11,8 +13,10 @@ import java.util.*;
  * Handles both solo and team match RP calculations.
  */
 public class RankManager {
-    
+
     private final PlayerDAO playerDAO;
+    private final Map<String, Team> teams = new HashMap<>();
+    private final Map<UUID, String> playerTeams = new HashMap<>();
 
     // RP thresholds for rank progression
     private static final int B_RANK_THRESHOLD = 1500;
@@ -36,6 +40,118 @@ public class RankManager {
     }
 
     /**
+     * Retrieves a player by UUID.
+     *
+     * @param uuid the UUID of the player
+     * @return the BRBPlayer object, or null if not found
+     */
+    public BRBPlayer getPlayer(UUID uuid) {
+        return playerDAO.getPlayer(uuid);
+    }
+
+    /**
+     * Creates a new team.
+     *
+     * @param team the Team object to create
+     * @return true if the team was created, false if it already exists
+     */
+    public boolean createTeam(Team team) {
+        if (teams.containsKey(team.getName())) {
+            return false;
+        }
+        teams.put(team.getName(), team);
+        return true;
+    }
+
+    /**
+     * Retrieves a team by name.
+     *
+     * @param teamName the name of the team
+     * @return the Team object, or null if not found
+     */
+    public Team getTeamByName(String teamName) {
+        return teams.get(teamName);
+    }
+
+    /**
+     * Retrieves a player's current team.
+     *
+     * @param playerId the UUID of the player
+     * @return the Team object, or null if player is not in a team
+     */
+    public Team getPlayerTeam(UUID playerId) {
+        String teamName = playerTeams.get(playerId);
+        return teamName != null ? teams.get(teamName) : null;
+    }
+
+    /**
+     * Retrieves all team names.
+     *
+     * @return a list of team names
+     */
+    public List<String> getAllTeamNames() {
+        return new ArrayList<>(teams.keySet());
+    }
+
+    /**
+     * Deletes a team by name.
+     *
+     * @param teamName the name of the team
+     * @return true if the team was deleted, false if not found
+     */
+    public boolean deleteTeam(String teamName) {
+        Team team = teams.remove(teamName);
+        if (team != null) {
+            for (UUID memberId : team.getMembers()) {
+                playerTeams.remove(memberId);
+            }
+            return true;
+        }
+        return false;
+    }
+
+    /**
+     * Adds RP to a player for a specific weapon type.
+     *
+     * @param playerId the UUID of the player
+     * @param weaponType the weapon type
+     * @param amount the amount of RP to add
+     */
+    public void addPlayerRP(UUID playerId, String weaponType, int amount) {
+        BRBPlayer player = getPlayer(playerId);
+        if (player != null) {
+            try {
+                WeaponType wt = WeaponType.valueOf(weaponType.toUpperCase());
+                updateWeaponRP(player, wt, amount);
+            } catch (IllegalArgumentException e) {
+                // Invalid weapon type
+            }
+        }
+    }
+
+    /**
+     * Sets a player's RP for a specific weapon type.
+     *
+     * @param playerId the UUID of the player
+     * @param weaponType the weapon type
+     * @param value the absolute RP value
+     */
+    public void setPlayerRP(UUID playerId, String weaponType, int value) {
+        BRBPlayer player = getPlayer(playerId);
+        if (player != null) {
+            try {
+                WeaponType wt = WeaponType.valueOf(weaponType.toUpperCase());
+                WeaponRP wrp = player.getWeaponRP(wt);
+                int currentRP = wrp != null ? wrp.getRp() : 0;
+                int change = value - currentRP;
+                updateWeaponRP(player, wt, change);
+            } catch (IllegalArgumentException e) {
+                // Invalid weapon type
+            }
+        }
+    }
+
+    /**
      * Calculates RP change for a solo match using an Elo-like formula.
      * Formula: base=30, coefficient=1.0+(opponentRP-playerRP)/1000
      * Final change is clamped between ±5 and ±60.
@@ -48,14 +164,14 @@ public class RankManager {
         // Opponent strength factor
         double rpDifference = loserRP - winnerRP;
         double coefficient = RP_COEFFICIENT + (rpDifference * OPPONENT_SCALING);
-        
+
         // Calculate RP change
         double rpChange = BASE_RP_CHANGE * coefficient;
-        
+
         // Clamp to valid range
         int change = (int) Math.round(rpChange);
         change = Math.max(MIN_RP_CHANGE, Math.min(MAX_RP_CHANGE, change));
-        
+
         return change;
     }
 
@@ -75,13 +191,13 @@ public class RankManager {
             case 3 -> 20;   // 3rd place
             default -> 5;   // Other placements
         };
-        
+
         // Bonus for each kill
         int killBonus = kills * 3;
-        
+
         // Bonus for survival
         int survivalBonus = survived ? 15 : -10;
-        
+
         return baseRP + killBonus + survivalBonus;
     }
 
@@ -96,9 +212,10 @@ public class RankManager {
         if (player == null) {
             return false;
         }
-        
+
         // Check if any weapon type has reached B rank threshold
         return player.getWeaponRPs().values().stream()
+                .mapToInt(WeaponRP::getRp)
                 .anyMatch(rp -> rp >= B_RANK_THRESHOLD);
     }
 
@@ -113,8 +230,9 @@ public class RankManager {
         if (player == null) {
             return false;
         }
-        
+
         return player.getWeaponRPs().values().stream()
+                .mapToInt(WeaponRP::getRp)
                 .anyMatch(rp -> rp >= A_RANK_THRESHOLD);
     }
 
@@ -129,8 +247,9 @@ public class RankManager {
         if (player == null) {
             return false;
         }
-        
+
         return player.getWeaponRPs().values().stream()
+                .mapToInt(WeaponRP::getRp)
                 .anyMatch(rp -> rp >= S_RANK_THRESHOLD);
     }
 
@@ -142,7 +261,12 @@ public class RankManager {
      * @return a list of top BRBPlayer objects, sorted by descending RP
      */
     public List<BRBPlayer> getTopPlayers(WeaponType weaponType, int limit) {
-        return playerDAO.getTopPlayersByWeapon(weaponType, limit);
+        try {
+            return playerDAO.getTopPlayersByWeapon(weaponType, limit);
+        } catch (Exception e) {
+            e.printStackTrace();
+            return new ArrayList<>();
+        }
     }
 
     /**
@@ -152,7 +276,12 @@ public class RankManager {
      * @return a list of top BRBPlayer objects, sorted by descending total RP
      */
     public List<BRBPlayer> getGlobalTopPlayers(int limit) {
-        return playerDAO.getTopPlayers(limit);
+        try {
+            return playerDAO.getTopPlayers(limit);
+        } catch (Exception e) {
+            e.printStackTrace();
+            return new ArrayList<>();
+        }
     }
 
     /**
@@ -165,12 +294,12 @@ public class RankManager {
         if (player == null) {
             return "D";
         }
-        
+
         int maxRP = player.getWeaponRPs().values().stream()
-                .mapToInt(Integer::intValue)
+                .mapToInt(WeaponRP::getRp)
                 .max()
                 .orElse(0);
-        
+
         if (maxRP >= S_RANK_THRESHOLD) return "S";
         if (maxRP >= A_RANK_THRESHOLD) return "A";
         if (maxRP >= B_RANK_THRESHOLD) return "B";
@@ -188,10 +317,13 @@ public class RankManager {
         if (player == null) {
             return;
         }
-        
-        var weaponRPs = player.getWeaponRPs();
-        int currentRP = weaponRPs.getOrDefault(weaponType, 0);
-        weaponRPs.put(weaponType, Math.max(0, currentRP + rpChange));
+
+        WeaponRP wrp = player.getWeaponRP(weaponType);
+        if (wrp == null) {
+            wrp = new WeaponRP(weaponType);
+            player.setWeaponRP(weaponType, wrp);
+        }
+        wrp.setRp(Math.max(0, wrp.getRp() + rpChange));
     }
 
     /**
@@ -204,5 +336,62 @@ public class RankManager {
      */
     public int calculateLossRP(int loserRP, int winnerRP) {
         return -calculateSoloRP(winnerRP, loserRP);
+    }
+
+    /**
+     * Placeholder for starting a season.
+     *
+     * @param seasonName the name of the season
+     * @return true if season was started
+     */
+    public boolean startSeason(String seasonName) {
+        // TODO: Implement season management
+        return true;
+    }
+
+    /**
+     * Placeholder for ending the current season.
+     *
+     * @return true if season was ended
+     */
+    public boolean endSeason() {
+        // TODO: Implement season management
+        return true;
+    }
+
+    /**
+     * Creates a new player in the database.
+     *
+     * @param player the player to create
+     */
+    public void createPlayer(BRBPlayer player) {
+        // TODO: Persist to database
+    }
+
+    /**
+     * Saves a player to the database.
+     *
+     * @param player the player to save
+     */
+    public void savePlayer(BRBPlayer player) {
+        // TODO: Persist to database
+    }
+
+    /**
+     * Caches a player in memory.
+     *
+     * @param player the player to cache
+     */
+    public void cachePlayer(BRBPlayer player) {
+        // TODO: Cache implementation
+    }
+
+    /**
+     * Removes a player from cache.
+     *
+     * @param playerId the UUID of the player
+     */
+    public void uncachePlayer(UUID playerId) {
+        // TODO: Cache removal implementation
     }
 }

@@ -4,6 +4,7 @@ import com.borderrank.battle.BRBPlugin;
 import com.borderrank.battle.manager.RankManager;
 import com.borderrank.battle.manager.TrionManager;
 import com.borderrank.battle.model.BRBPlayer;
+import com.borderrank.battle.model.RankClass;
 import com.borderrank.battle.util.MessageUtil;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
@@ -33,27 +34,27 @@ public class PlayerConnectionListener implements Listener {
         // Load player data asynchronously
         plugin.getServer().getScheduler().runTaskAsynchronously(plugin, () -> {
             BRBPlayer brPlayer = rankManager.getPlayer(uuid);
-            
+
             if (brPlayer == null) {
                 // Create new player
-                brPlayer = new BRBPlayer(uuid, player.getName());
+                brPlayer = new BRBPlayer(uuid, player.getName(), RankClass.UNRANKED);
                 rankManager.createPlayer(brPlayer);
             } else {
                 // Update player name in case of name change
                 brPlayer.setPlayerName(player.getName());
             }
-            
+
             // Cache the player data
             rankManager.cachePlayer(brPlayer);
-            
+
             // Load trion data
             TrionManager trionManager = plugin.getTrionManager();
-            trionManager.initializePlayer(uuid, 1000); // Default trion value
-            
+            trionManager.initPlayer(uuid, 1000); // Default trion value
+
             // Notify player
             plugin.getServer().getScheduler().runTask(plugin, () -> {
-                MessageUtil.sendInfoMessage(player, "Welcome to Border Rank Battle!");
-                MessageUtil.sendInfoMessage(player, "Use /rank for ranking info, /trigger for loadouts");
+                MessageUtil.sendMessage(player, "Welcome to Border Rank Battle!");
+                MessageUtil.sendMessage(player, "Use /rank for ranking info, /trigger for loadouts");
             });
         });
     }
@@ -79,10 +80,10 @@ public class PlayerConnectionListener implements Listener {
             if (brPlayer != null) {
                 rankManager.savePlayer(brPlayer);
             }
-            
+
             // Clean up trion state
             trionManager.removePlayer(uuid);
-            
+
             // Remove from cache
             rankManager.uncachePlayer(uuid);
         });

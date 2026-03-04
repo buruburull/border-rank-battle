@@ -13,7 +13,7 @@ import java.util.*;
  * Handles loadout validation, slot management, and weapon type detection.
  */
 public class LoadoutManager {
-    
+
     private final Map<UUID, Map<String, Loadout>> playerLoadouts = new HashMap<>();
     private final LoadoutDAO loadoutDAO;
 
@@ -30,26 +30,23 @@ public class LoadoutManager {
      * Loads all loadouts for a player from the database.
      *
      * @param playerId the UUID of the player
-     * @param connection the database connection
      * @throws Exception if database operations fail
      */
-    public void loadPlayerLoadouts(UUID playerId, Connection connection) throws Exception {
-        var loadouts = loadoutDAO.getPlayerLoadouts(playerId, connection);
+    public void loadPlayerLoadouts(UUID playerId) throws Exception {
+        var loadouts = loadoutDAO.loadPlayerLoadouts(playerId);
         playerLoadouts.put(playerId, loadouts);
     }
 
     /**
      * Saves or updates a loadout to the database and cache.
      *
-     * @param playerId the UUID of the player
      * @param loadout the loadout to save
-     * @param connection the database connection
      * @throws Exception if database operations fail
      */
-    public void saveLoadout(UUID playerId, Loadout loadout, Connection connection) throws Exception {
-        loadoutDAO.saveLoadout(playerId, loadout, connection);
-        var playerLoadouts = this.playerLoadouts.computeIfAbsent(playerId, k -> new HashMap<>());
-        playerLoadouts.put(loadout.getName(), loadout);
+    public void saveLoadout(Loadout loadout) throws Exception {
+        loadoutDAO.saveLoadout(loadout);
+        var playerLoadoutsMap = this.playerLoadouts.computeIfAbsent(loadout.getPlayerUuid(), k -> new HashMap<>());
+        playerLoadoutsMap.put(loadout.getName(), loadout);
     }
 
     /**
@@ -64,7 +61,7 @@ public class LoadoutManager {
         if (playerLoadouts == null || playerLoadouts.isEmpty()) {
             return null;
         }
-        
+
         return playerLoadouts.values().stream()
                 .filter(Loadout::isActive)
                 .findFirst()
@@ -106,36 +103,45 @@ public class LoadoutManager {
      * @param maxTP the maximum trion points allowed
      * @return true if the trigger was set successfully, false otherwise
      */
-    public boolean setSlot(UUID playerId, String loadoutName, int slotIndex, String triggerId, 
+    public boolean setSlot(UUID playerId, String loadoutName, int slotIndex, String triggerId,
                           TriggerRegistry triggerRegistry, int maxTP) {
         var loadout = getLoadout(playerId, loadoutName);
         if (loadout == null) {
             return false;
         }
-        
+
         var triggerData = triggerRegistry.get(triggerId);
         if (triggerData == null) {
             return false;
         }
-        
+
         var slots = loadout.getSlots();
         if (slotIndex < 0 || slotIndex >= slots.size()) {
             return false;
         }
-        
+
         // Calculate the cost change
         var currentSlot = slots.get(slotIndex);
-        int currentCost = currentSlot != null && !currentSlot.isEmpty() ? 
+        int currentCost = currentSlot != null && !currentSlot.isEmpty() ?
                 triggerRegistry.get(currentSlot).getCost() : 0;
         int newCost = triggerData.getCost();
         int costDifference = newCost - currentCost;
-        
+
         // Check if adding this trigger exceeds the limit
-        if (loadout.getTotalCost() + costDifference > maxTP) {
+        int totalLoadoutCost = 0;
+        for (String triggerId2 : slots) {
+            if (triggerId2 != null && !triggerId2.isEmpty()) {
+                TriggerData td = triggerRegistry.get(triggerId2);
+                if (td != null) {
+                    totalLoadoutCost += td.getCost();
+                }
+            }
+        }
+        if (totalLoadoutCost + costDifference > maxTP) {
             return false;
         }
-        
-        slots.set(slotIndex, triggerId);
+
+        loadout.setSlot(slotIndex, triggerId);
         return true;
     }
 
@@ -152,13 +158,13 @@ public class LoadoutManager {
         if (loadout == null || loadout.getSlots().isEmpty()) {
             return false;
         }
-        
+
         int totalCost = 0;
         boolean hasMainAttack = false;
-        
+
         for (int i = 0; i < loadout.getSlots().size(); i++) {
             String triggerId = loadout.getSlots().get(i);
-            
+
             if (triggerId == null || triggerId.isEmpty()) {
                 // Slots may be empty, but slot 0 (main attack) must have a trigger
                 if (i == 0) {
@@ -166,20 +172,20 @@ public class LoadoutManager {
                 }
                 continue;
             }
-            
+
             TriggerData triggerData = triggerRegistry.get(triggerId);
             if (triggerData == null) {
                 return false;
             }
-            
+
             totalCost += triggerData.getCost();
-            
+
             // Slots 0-3 are main attack slots
             if (i < 4 && triggerData.isMainAttack()) {
                 hasMainAttack = true;
             }
         }
-        
+
         // Must have at least one main attack and stay within cost limit
         return hasMainAttack && totalCost <= maxTP;
     }
@@ -196,24 +202,24 @@ public class LoadoutManager {
         if (loadout == null || loadout.getSlots().isEmpty()) {
             return null;
         }
-        
+
         Map<String, Integer> weaponTypeCounts = new HashMap<>();
-        
+
         // Count weapon types from main attack slots (0-3)
         for (int i = 0; i < Math.min(4, loadout.getSlots().size()); i++) {
             String triggerId = loadout.getSlots().get(i);
-            
+
             if (triggerId == null || triggerId.isEmpty()) {
                 continue;
             }
-            
+
             TriggerData triggerData = triggerRegistry.get(triggerId);
             if (triggerData != null && triggerData.isMainAttack()) {
                 String weaponType = triggerData.getWeaponType();
                 weaponTypeCounts.put(weaponType, weaponTypeCounts.getOrDefault(weaponType, 0) + 1);
             }
         }
-        
+
         // Return the most common weapon type
         return weaponTypeCounts.entrySet().stream()
                 .max(Map.Entry.comparingByValue())

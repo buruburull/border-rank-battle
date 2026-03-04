@@ -3,6 +3,7 @@ package com.borderrank.battle.manager;
 import com.borderrank.battle.model.TriggerCategory;
 import com.borderrank.battle.model.TriggerData;
 import org.bukkit.configuration.file.FileConfiguration;
+import org.bukkit.plugin.java.JavaPlugin;
 
 import java.util.*;
 
@@ -11,8 +12,19 @@ import java.util.*;
  * Provides access to trigger data and filtering capabilities.
  */
 public class TriggerRegistry {
-    
+
     private final Map<String, TriggerData> triggers = new HashMap<>();
+    private final JavaPlugin plugin;
+
+    /**
+     * Constructs a TriggerRegistry with a plugin instance.
+     *
+     * @param plugin the JavaPlugin instance for accessing configuration
+     */
+    public TriggerRegistry(JavaPlugin plugin) {
+        this.plugin = plugin;
+        load(plugin.getConfig());
+    }
 
     /**
      * Loads trigger definitions from the triggers.yml configuration section.
@@ -22,22 +34,22 @@ public class TriggerRegistry {
      */
     public void load(FileConfiguration config) {
         triggers.clear();
-        
+
         if (config == null || !config.contains("triggers")) {
             return;
         }
-        
+
         var triggersSection = config.getConfigurationSection("triggers");
         if (triggersSection == null) {
             return;
         }
-        
+
         for (String triggerId : triggersSection.getKeys(false)) {
             var triggerSection = triggersSection.getConfigurationSection(triggerId);
             if (triggerSection == null) {
                 continue;
             }
-            
+
             try {
                 TriggerData triggerData = parseTriggerData(triggerId, triggerSection);
                 triggers.put(triggerId, triggerData);
@@ -45,6 +57,22 @@ public class TriggerRegistry {
                 System.err.println("Failed to load trigger: " + triggerId);
                 e.printStackTrace();
             }
+        }
+    }
+
+    /**
+     * Reloads all triggers from the plugin configuration.
+     *
+     * @return true if reload was successful, false otherwise
+     */
+    public boolean reloadTriggers() {
+        try {
+            plugin.reloadConfig();
+            load(plugin.getConfig());
+            return true;
+        } catch (Exception e) {
+            e.printStackTrace();
+            return false;
         }
     }
 
@@ -62,25 +90,8 @@ public class TriggerRegistry {
                 .description(section.getString("description", ""))
                 .category(TriggerCategory.valueOf(section.getString("category", "SUPPORT").toUpperCase()))
                 .cost(section.getInt("cost", 0))
-                .cooldown(section.getInt("cooldown", 0))
-                .baseAttackPower(section.getDouble("baseAttackPower", 0.0))
-                .weaponType(section.getString("weaponType", "UNKNOWN"))
-                .requiresLineOfSight(section.getBoolean("requiresLineOfSight", false))
-                .isMainAttack(section.getBoolean("isMainAttack", false))
-                .isSustain(section.getBoolean("isSustain", false));
-        
-        if (section.contains("sustainCost")) {
-            builder.sustainCost(section.getDouble("sustainCost", 0.0));
-        }
-        
-        if (section.contains("range")) {
-            builder.range(section.getDouble("range", 0.0));
-        }
-        
-        if (section.contains("castTime")) {
-            builder.castTime(section.getInt("castTime", 0));
-        }
-        
+                .cooldown(section.getInt("cooldown", 0));
+
         return builder.build();
     }
 

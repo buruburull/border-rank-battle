@@ -169,7 +169,7 @@ public class PlayerDAO {
      * @return a list of BRBPlayer objects, ordered by RP descending
      * @throws SQLException if a database error occurs
      */
-    public List<BRBPlayer> getTopPlayers(WeaponType type, int limit) throws SQLException {
+    public List<BRBPlayer> getTopPlayersByWeapon(WeaponType type, int limit) throws SQLException {
         List<BRBPlayer> topPlayers = new ArrayList<>();
         String query = "SELECT p.uuid, p.name, p.rank_class, p.trion_cap, p.trion_max " +
                        "FROM players p " +
@@ -182,6 +182,61 @@ public class PlayerDAO {
              PreparedStatement stmt = conn.prepareStatement(query)) {
             stmt.setString(1, type.name());
             stmt.setInt(2, Math.max(1, limit));
+
+            try (ResultSet rs = stmt.executeQuery()) {
+                while (rs.next()) {
+                    UUID uuid = UUID.fromString(rs.getString("uuid"));
+                    String name = rs.getString("name");
+                    RankClass rankClass = RankClass.valueOf(rs.getString("rank_class"));
+                    int trionCap = rs.getInt("trion_cap");
+                    int trionMax = rs.getInt("trion_max");
+
+                    BRBPlayer player = new BRBPlayer(uuid, name, rankClass, trionCap, trionMax);
+
+                    // Load weapon RP data
+                    Map<WeaponType, WeaponRP> weaponRPMap = loadWeaponRP(uuid);
+                    weaponRPMap.forEach(player::setWeaponRP);
+
+                    topPlayers.add(player);
+                }
+            }
+        }
+
+        return topPlayers;
+    }
+
+    /**
+     * Gets the top players for a specific weapon type.
+     *
+     * @param type the weapon type
+     * @param limit the maximum number of players to return
+     * @return a list of BRBPlayer objects, ordered by RP descending
+     * @throws SQLException if a database error occurs
+     */
+    public List<BRBPlayer> getTopPlayers(WeaponType type, int limit) throws SQLException {
+        return getTopPlayersByWeapon(type, limit);
+    }
+
+    /**
+     * Gets the top players across all weapon types by total RP.
+     *
+     * @param limit the maximum number of players to return
+     * @return a list of BRBPlayer objects, ordered by total RP descending
+     * @throws SQLException if a database error occurs
+     */
+    public List<BRBPlayer> getTopPlayers(int limit) throws SQLException {
+        List<BRBPlayer> topPlayers = new ArrayList<>();
+        String query = "SELECT p.uuid, p.name, p.rank_class, p.trion_cap, p.trion_max, " +
+                       "SUM(w.rp) as total_rp " +
+                       "FROM players p " +
+                       "JOIN weapon_rp w ON p.uuid = w.uuid " +
+                       "GROUP BY p.uuid " +
+                       "ORDER BY total_rp DESC " +
+                       "LIMIT ?";
+
+        try (Connection conn = databaseManager.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(query)) {
+            stmt.setInt(1, Math.max(1, limit));
 
             try (ResultSet rs = stmt.executeQuery()) {
                 while (rs.next()) {
@@ -246,6 +301,21 @@ public class PlayerDAO {
         }
 
         return topPlayers;
+    }
+
+    /**
+     * Gets a player by UUID (convenience wrapper around loadPlayer).
+     *
+     * @param uuid the player's UUID
+     * @return the BRBPlayer object, or null if not found or on error
+     */
+    public BRBPlayer getPlayer(UUID uuid) {
+        try {
+            return loadPlayer(uuid);
+        } catch (SQLException e) {
+            e.printStackTrace();
+            return null;
+        }
     }
 
     /**

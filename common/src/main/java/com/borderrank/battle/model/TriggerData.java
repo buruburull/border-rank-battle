@@ -7,16 +7,6 @@ import org.bukkit.Material;
  */
 public class TriggerData {
     /**
-     * Enum for trigger categories.
-     */
-    public enum TriggerCategory {
-        ATTACKER,
-        SHOOTER,
-        SNIPER,
-        SUPPORT
-    }
-
-    /**
      * Enum for slot types.
      */
     public enum SlotType {
@@ -153,6 +143,50 @@ public class TriggerData {
      */
     public String getDescription() {
         return description;
+    }
+
+    /**
+     * Creates a new builder for TriggerData.
+     *
+     * @return a new Builder instance
+     */
+    public static Builder builder() {
+        return new Builder();
+    }
+
+    /**
+     * Checks if this trigger is a main attack trigger.
+     *
+     * @return true if the category is ATTACKER, SHOOTER, or SNIPER
+     */
+    public boolean isMainAttack() {
+        return category == TriggerCategory.ATTACKER ||
+               category == TriggerCategory.SHOOTER ||
+               category == TriggerCategory.SNIPER;
+    }
+
+    /**
+     * Gets the weapon type string for this trigger's category.
+     *
+     * @return the weapon type string (ATTACKER, SHOOTER, or SNIPER)
+     */
+    public String getWeaponType() {
+        switch (category) {
+            case ATTACKER:
+                return "ATTACKER";
+            case SHOOTER:
+                return "SHOOTER";
+            case SNIPER:
+                return "SNIPER";
+            case SUPPORT:
+                return "SUPPORT";
+            case DEFENSE:
+                return "DEFENSE";
+            case OPTION:
+                return "OPTION";
+            default:
+                return "UNKNOWN";
+        }
     }
 
     /**

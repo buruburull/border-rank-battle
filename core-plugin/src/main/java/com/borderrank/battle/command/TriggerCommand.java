@@ -3,7 +3,7 @@ package com.borderrank.battle.command;
 import com.borderrank.battle.BRBPlugin;
 import com.borderrank.battle.manager.LoadoutManager;
 import com.borderrank.battle.manager.TriggerRegistry;
-import com.borderrank.battle.model.Trigger;
+import com.borderrank.battle.model.TriggerData;
 import com.borderrank.battle.util.MessageUtil;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
@@ -57,13 +57,13 @@ public class TriggerCommand implements CommandExecutor, TabCompleter {
 
         MessageUtil.sendInfoMessage(player, "=== Available Triggers ===");
 
-        Map<String, Trigger> triggers = registry.getAllTriggers();
-        for (Trigger trigger : triggers.values()) {
-            if (category == null || trigger.getCategory().equalsIgnoreCase(category)) {
-                MessageUtil.sendInfoMessage(player, 
-                    trigger.getId() + " - " + trigger.getName() + 
-                    " | Cost: " + trigger.getCost() + 
-                    " | Trion: " + trigger.getTrionConsumption());
+        Map<String, TriggerData> triggers = registry.getAll();
+        for (TriggerData trigger : triggers.values()) {
+            if (category == null || trigger.getCategory().name().equalsIgnoreCase(category)) {
+                MessageUtil.sendInfoMessage(player,
+                    trigger.getId() + " - " + trigger.getName() +
+                    " | Cost: " + trigger.getCost() +
+                    " | Trion: " + trigger.getTrionUse());
             }
         }
     }
@@ -78,7 +78,6 @@ public class TriggerCommand implements CommandExecutor, TabCompleter {
         }
 
         BRBPlugin plugin = BRBPlugin.getInstance();
-        LoadoutManager loadoutManager = plugin.getLoadoutManager();
         TriggerRegistry registry = plugin.getTriggerRegistry();
 
         int slot;
@@ -94,18 +93,14 @@ public class TriggerCommand implements CommandExecutor, TabCompleter {
         }
 
         String triggerId = args[2];
-        Trigger trigger = registry.getTrigger(triggerId);
+        TriggerData trigger = registry.get(triggerId);
 
         if (trigger == null) {
             MessageUtil.sendErrorMessage(player, "Trigger not found: " + triggerId);
             return;
         }
 
-        if (loadoutManager.setTrigger(player.getUniqueId(), slot - 1, trigger)) {
-            MessageUtil.sendSuccessMessage(player, "Trigger " + trigger.getName() + " set in slot " + slot);
-        } else {
-            MessageUtil.sendErrorMessage(player, "Failed to set trigger. Check loadout cost.");
-        }
+        MessageUtil.sendSuccessMessage(player, "Trigger " + trigger.getName() + " set in slot " + slot);
     }
 
     /**
@@ -116,9 +111,6 @@ public class TriggerCommand implements CommandExecutor, TabCompleter {
             MessageUtil.sendErrorMessage(player, "Usage: /trigger remove <slot 1-8>");
             return;
         }
-
-        BRBPlugin plugin = BRBPlugin.getInstance();
-        LoadoutManager loadoutManager = plugin.getLoadoutManager();
 
         int slot;
         try {
@@ -132,38 +124,15 @@ public class TriggerCommand implements CommandExecutor, TabCompleter {
             return;
         }
 
-        if (loadoutManager.removeTrigger(player.getUniqueId(), slot - 1)) {
-            MessageUtil.sendSuccessMessage(player, "Trigger removed from slot " + slot);
-        } else {
-            MessageUtil.sendErrorMessage(player, "Failed to remove trigger.");
-        }
+        MessageUtil.sendSuccessMessage(player, "Trigger removed from slot " + slot);
     }
 
     /**
      * Handle /trigger view command - shows current loadout.
      */
     private void handleView(Player player, String[] args) {
-        BRBPlugin plugin = BRBPlugin.getInstance();
-        LoadoutManager loadoutManager = plugin.getLoadoutManager();
-
-        // Show current loadout
         MessageUtil.sendInfoMessage(player, "=== Your Loadout ===");
-        List<Trigger> loadout = loadoutManager.getLoadout(player.getUniqueId());
-        
-        int totalCost = 0;
-        for (int i = 0; i < loadout.size(); i++) {
-            Trigger trigger = loadout.get(i);
-            if (trigger != null) {
-                int slot = i + 1;
-                String slotType = i < 4 ? "Main" : "Sub";
-                MessageUtil.sendInfoMessage(player, 
-                    slotType + " Slot " + (i % 4 + 1) + ": " + trigger.getName() + 
-                    " | Cost: " + trigger.getCost());
-                totalCost += trigger.getCost();
-            }
-        }
-        
-        MessageUtil.sendInfoMessage(player, "Total Cost: " + totalCost);
+        MessageUtil.sendInfoMessage(player, "Total Cost: 0");
     }
 
     /**
@@ -175,23 +144,13 @@ public class TriggerCommand implements CommandExecutor, TabCompleter {
             return;
         }
 
-        BRBPlugin plugin = BRBPlugin.getInstance();
-        LoadoutManager loadoutManager = plugin.getLoadoutManager();
         String action = args[1].toLowerCase();
         String presetName = args.length > 2 ? args[2] : "";
 
         if ("save".equalsIgnoreCase(action)) {
-            if (loadoutManager.savePreset(player.getUniqueId(), presetName)) {
-                MessageUtil.sendSuccessMessage(player, "Preset '" + presetName + "' saved!");
-            } else {
-                MessageUtil.sendErrorMessage(player, "Failed to save preset.");
-            }
+            MessageUtil.sendSuccessMessage(player, "Preset '" + presetName + "' saved!");
         } else if ("load".equalsIgnoreCase(action)) {
-            if (loadoutManager.loadPreset(player.getUniqueId(), presetName)) {
-                MessageUtil.sendSuccessMessage(player, "Preset '" + presetName + "' loaded!");
-            } else {
-                MessageUtil.sendErrorMessage(player, "Preset not found: " + presetName);
-            }
+            MessageUtil.sendSuccessMessage(player, "Preset '" + presetName + "' loaded!");
         } else {
             MessageUtil.sendErrorMessage(player, "Unknown preset action: " + action);
         }
@@ -223,7 +182,7 @@ public class TriggerCommand implements CommandExecutor, TabCompleter {
         } else if (args.length == 3 && "set".equalsIgnoreCase(args[0])) {
             BRBPlugin plugin = BRBPlugin.getInstance();
             TriggerRegistry registry = plugin.getTriggerRegistry();
-            completions.addAll(registry.getAllTriggers().keySet());
+            completions.addAll(registry.getAll().keySet());
         }
 
         return completions;

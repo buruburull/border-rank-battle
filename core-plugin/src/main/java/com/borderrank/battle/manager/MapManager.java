@@ -1,6 +1,7 @@
 package com.borderrank.battle.manager;
 
 import org.bukkit.configuration.file.FileConfiguration;
+import org.bukkit.plugin.java.JavaPlugin;
 
 import java.util.*;
 
@@ -8,9 +9,20 @@ import java.util.*;
  * Manages available maps and arena selection for matches.
  */
 public class MapManager {
-    
+
     private final List<String> availableMaps = new ArrayList<>();
     private final Random random = new Random();
+    private final JavaPlugin plugin;
+
+    /**
+     * Constructs a MapManager with a plugin instance.
+     *
+     * @param plugin the JavaPlugin instance for accessing configuration
+     */
+    public MapManager(JavaPlugin plugin) {
+        this.plugin = plugin;
+        loadMaps(plugin.getConfig());
+    }
 
     /**
      * Loads map definitions from configuration.
@@ -20,22 +32,22 @@ public class MapManager {
      */
     public void loadMaps(FileConfiguration config) {
         availableMaps.clear();
-        
+
         if (config == null || !config.contains("maps")) {
             return;
         }
-        
+
         var mapsSection = config.getConfigurationSection("maps");
         if (mapsSection == null) {
             return;
         }
-        
+
         for (String mapName : mapsSection.getKeys(false)) {
             var mapSection = mapsSection.getConfigurationSection(mapName);
             if (mapSection == null) {
                 continue;
             }
-            
+
             // Validate map has required properties (name, spawn points)
             if (mapSection.contains("name") && mapSection.contains("spawn-points")) {
                 availableMaps.add(mapName);
@@ -52,7 +64,7 @@ public class MapManager {
         if (availableMaps.isEmpty()) {
             return null;
         }
-        
+
         return availableMaps.get(random.nextInt(availableMaps.size()));
     }
 
