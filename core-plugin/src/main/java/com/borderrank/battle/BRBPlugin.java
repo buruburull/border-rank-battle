@@ -46,13 +46,20 @@ public class BRBPlugin extends JavaPlugin {
         saveDefaultConfig();
 
         // Initialize database
-        String mysqlHost = getConfig().getString("mysql.host", "localhost");
-        int mysqlPort = getConfig().getInt("mysql.port", 3306);
-        String mysqlDatabase = getConfig().getString("mysql.database", "brb");
-        String mysqlUsername = getConfig().getString("mysql.username", "root");
-        String mysqlPassword = getConfig().getString("mysql.password", "");
+        String mysqlHost = getConfig().getString("database.host", "localhost");
+        int mysqlPort = getConfig().getInt("database.port", 3306);
+        String mysqlDatabase = getConfig().getString("database.name", "brb_game");
+        String mysqlUsername = getConfig().getString("database.user", "root");
+        String mysqlPassword = getConfig().getString("database.password", "");
 
         databaseManager = new DatabaseManager(mysqlHost, mysqlPort, mysqlDatabase, mysqlUsername, mysqlPassword);
+        try {
+            databaseManager.init();
+            getLogger().info("Database connected successfully!");
+        } catch (Exception e) {
+            getLogger().severe("Failed to connect to database: " + e.getMessage());
+            e.printStackTrace();
+        }
 
         // Initialize managers
         triggerRegistry = new TriggerRegistry(this);
