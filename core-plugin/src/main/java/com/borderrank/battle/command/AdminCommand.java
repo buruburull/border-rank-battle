@@ -140,16 +140,20 @@ public class AdminCommand implements CommandExecutor, TabCompleter {
             }
 
             String seasonName = args[2];
+            if (rankManager.getActiveSeason() != null) {
+                MessageUtil.sendErrorMessage(sender, "シーズンがすでに進行中です。先に /bradmin season end で終了してください。");
+                return;
+            }
             if (rankManager.startSeason(seasonName)) {
-                MessageUtil.sendSuccessMessage(sender, "Season '" + seasonName + "' started!");
+                MessageUtil.sendSuccessMessage(sender, "シーズン '" + seasonName + "' を開始しました！");
             } else {
-                MessageUtil.sendErrorMessage(sender, "Failed to start season.");
+                MessageUtil.sendErrorMessage(sender, "シーズンの開始に失敗しました。");
             }
         } else if ("end".equalsIgnoreCase(action)) {
             if (rankManager.endSeason()) {
-                MessageUtil.sendSuccessMessage(sender, "Current season ended!");
+                MessageUtil.sendSuccessMessage(sender, "現在のシーズンを終了しました。全プレイヤーのRPをリセットしました。");
             } else {
-                MessageUtil.sendErrorMessage(sender, "No active season to end.");
+                MessageUtil.sendErrorMessage(sender, "進行中のシーズンがありません。");
             }
         } else {
             MessageUtil.sendErrorMessage(sender, "Unknown season action: " + action);

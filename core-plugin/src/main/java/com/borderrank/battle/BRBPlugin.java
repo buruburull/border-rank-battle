@@ -105,12 +105,32 @@ public class BRBPlugin extends JavaPlugin {
      * Start the main ticking tasks.
      */
     private void startTickingTasks() {
-        // Tick match manager every tick (20 ticks/second = 1 second)
+        // Tick match manager every second
         getServer().getScheduler().scheduleSyncRepeatingTask(this, () -> {
             if (matchManager != null) {
                 matchManager.tick();
             }
         }, 0, 20);
+
+        // Check queue for matchmaking every 5 seconds
+        getServer().getScheduler().scheduleSyncRepeatingTask(this, () -> {
+            if (queueManager == null || matchManager == null) return;
+
+            // Try to form a solo match (minimum 2 players)
+            java.util.Set<java.util.UUID> matched = queueManager.trySoloMatch(2);
+            if (!matched.isEmpty()) {
+                int matchId = matchManager.createSoloMatch(matched, "arena_default");
+                if (matchId > 0) {
+                    getLogger().info("Solo match #" + matchId + " created with " + matched.size() + " players");
+                    for (java.util.UUID uuid : matched) {
+                        org.bukkit.entity.Player player = getServer().getPlayer(uuid);
+                        if (player != null) {
+                            com.borderrank.battle.util.MessageUtil.sendSuccessMessage(player, "マッチが見つかりました！マッチ #" + matchId);
+                        }
+                    }
+                }
+            }
+        }, 100, 100); // Start after 5 sec, repeat every 5 sec
     }
 
     /**

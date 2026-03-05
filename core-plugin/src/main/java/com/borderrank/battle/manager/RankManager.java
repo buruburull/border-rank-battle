@@ -2,6 +2,7 @@ package com.borderrank.battle.manager;
 
 import com.borderrank.battle.database.PlayerDAO;
 import com.borderrank.battle.model.BRBPlayer;
+import com.borderrank.battle.model.Season;
 import com.borderrank.battle.model.Team;
 import com.borderrank.battle.model.WeaponRP;
 import com.borderrank.battle.model.WeaponType;
@@ -17,6 +18,8 @@ public class RankManager {
     private final PlayerDAO playerDAO;
     private final Map<String, Team> teams = new HashMap<>();
     private final Map<UUID, String> playerTeams = new HashMap<>();
+    // Pending invites: invitee UUID -> team name
+    private final Map<UUID, String> pendingInvites = new HashMap<>();
 
     // RP thresholds for rank progression
     private static final int B_RANK_THRESHOLD = 1500;
@@ -68,6 +71,8 @@ public class RankManager {
             return false;
         }
         teams.put(team.getName(), team);
+        // Register leader in playerTeams map
+        playerTeams.put(team.getLeaderId(), team.getName());
         return true;
     }
 
@@ -90,6 +95,55 @@ public class RankManager {
     public Team getPlayerTeam(UUID playerId) {
         String teamName = playerTeams.get(playerId);
         return teamName != null ? teams.get(teamName) : null;
+    }
+
+    /**
+     * Registers a player-team mapping.
+     *
+     * @param playerId the UUID of the player
+     * @param teamName the team name
+     */
+    public void registerPlayerTeam(UUID playerId, String teamName) {
+        playerTeams.put(playerId, teamName);
+    }
+
+    /**
+     * Unregisters a player from their team mapping.
+     *
+     * @param playerId the UUID of the player
+     */
+    public void unregisterPlayerTeam(UUID playerId) {
+        playerTeams.remove(playerId);
+    }
+
+    /**
+     * Sends an invite to a player.
+     *
+     * @param playerId the UUID of the invitee
+     * @param teamName the team name
+     */
+    public void addPendingInvite(UUID playerId, String teamName) {
+        pendingInvites.put(playerId, teamName);
+    }
+
+    /**
+     * Gets and removes a pending invite for a player.
+     *
+     * @param playerId the UUID of the invitee
+     * @return the team name, or null if no invite
+     */
+    public String consumePendingInvite(UUID playerId) {
+        return pendingInvites.remove(playerId);
+    }
+
+    /**
+     * Checks if a player has a pending invite.
+     *
+     * @param playerId the UUID of the invitee
+     * @return true if the player has a pending invite
+     */
+    public boolean hasPendingInvite(UUID playerId) {
+        return pendingInvites.containsKey(playerId);
     }
 
     /**
@@ -347,24 +401,54 @@ public class RankManager {
     }
 
     /**
-     * Placeholder for starting a season.
+     * Returns the currently active season, or null if none exists.
      *
-     * @param seasonName the name of the season
-     * @return true if season was started
+     * @return the active Season, or null
      */
-    public boolean startSeason(String seasonName) {
-        // TODO: Implement season management
-        return true;
+    public Season getActiveSeason() {
+        try {
+            return playerDAO.getActiveSeason();
+        } catch (Exception e) {
+            e.printStackTrace();
+            return null;
+        }
     }
 
     /**
-     * Placeholder for ending the current season.
+     * Starts a new season. Fails if a season is already active.
      *
-     * @return true if season was ended
+     * @param seasonName the name of the season
+     * @return true if the season was started successfully
+     */
+    public boolean startSeason(String seasonName) {
+        try {
+            if (playerDAO.getActiveSeason() != null) {
+                return false; // must end the current season first
+            }
+            return playerDAO.startSeason(seasonName) > 0;
+        } catch (Exception e) {
+            e.printStackTrace();
+            return false;
+        }
+    }
+
+    /**
+     * Ends the current active season: snapshots RP, resets all weapon RP to 1000,
+     * resets all rank classes to UNRANKED, and clears the player cache.
+     *
+     * @return true if a season was ended, false if no active season
      */
     public boolean endSeason() {
-        // TODO: Implement season management
-        return true;
+        try {
+            boolean ended = playerDAO.endSeason();
+            if (ended) {
+                playerCache.clear();
+            }
+            return ended;
+        } catch (Exception e) {
+            e.printStackTrace();
+            return false;
+        }
     }
 
     private final Map<UUID, BRBPlayer> playerCache = new HashMap<>();

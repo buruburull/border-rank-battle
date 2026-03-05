@@ -2,6 +2,7 @@ package com.borderrank.battle.database;
 
 import com.borderrank.battle.model.BRBPlayer;
 import com.borderrank.battle.model.RankClass;
+import com.borderrank.battle.model.Season;
 import com.borderrank.battle.model.WeaponRP;
 import com.borderrank.battle.model.WeaponType;
 
@@ -9,6 +10,7 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.Timestamp;
 import java.util.ArrayList;
 import java.util.EnumMap;
 import java.util.List;
@@ -332,5 +334,97 @@ public class PlayerDAO {
             stmt.setString(1, uuid.toString());
             stmt.executeUpdate();
         }
+    }
+
+    /**
+     * Returns the currently active season, or null if none.
+     *
+     * @return the active Season, or null
+     * @throws SQLException if a database error occurs
+     */
+    public Season getActiveSeason() throws SQLException {
+        String query = "SELECT season_id, season_name, start_date, end_date, is_active FROM seasons WHERE is_active = TRUE LIMIT 1";
+
+        try (Connection conn = databaseManager.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(query);
+             ResultSet rs = stmt.executeQuery()) {
+            if (rs.next()) {
+                Timestamp endTs = rs.getTimestamp("end_date");
+                return new Season(
+                    rs.getInt("season_id"),
+                    rs.getString("season_name"),
+                    rs.getTimestamp("start_date").toLocalDateTime(),
+                    endTs != null ? endTs.toLocalDateTime() : null,
+                    rs.getBoolean("is_active")
+                );
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Starts a new season. The caller must ensure no season is currently active.
+     *
+     * @param seasonName the name of the new season
+     * @return the new season_id, or -1 on failure
+     * @throws SQLException if a database error occurs
+     */
+    public int startSeason(String seasonName) throws SQLException {
+        String insert = "INSERT INTO seasons (season_name, start_date, is_active) VALUES (?, NOW(), TRUE)";
+
+        try (Connection conn = databaseManager.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(insert, PreparedStatement.RETURN_GENERATED_KEYS)) {
+            stmt.setString(1, seasonName);
+            stmt.executeUpdate();
+            try (ResultSet rs = stmt.getGeneratedKeys()) {
+                if (rs.next()) return rs.getInt(1);
+            }
+        }
+        return -1;
+    }
+
+    /**
+     * Ends the active season: snapshots all weapon RP, sets end_date, resets all weapon RP to 1000,
+     * and resets all player rank_class to UNRANKED. Runs in a single transaction.
+     *
+     * @return true if a season was ended, false if no active season existed
+     * @throws SQLException if a database error occurs
+     */
+    public boolean endSeason() throws SQLException {
+        Season active = getActiveSeason();
+        if (active == null) return false;
+
+        String snapshotSql = "INSERT INTO season_snapshots (season_id, uuid, weapon_type, final_rp) " +
+                             "SELECT ?, uuid, weapon_type, rp FROM weapon_rp";
+        String endSql      = "UPDATE seasons SET end_date = NOW(), is_active = FALSE WHERE season_id = ?";
+        String resetRpSql  = "UPDATE weapon_rp SET rp = 1000";
+        String resetRankSql = "UPDATE players SET rank_class = 'UNRANKED'";
+
+        try (Connection conn = databaseManager.getConnection()) {
+            conn.setAutoCommit(false);
+            try {
+                try (PreparedStatement stmt = conn.prepareStatement(snapshotSql)) {
+                    stmt.setInt(1, active.getId());
+                    stmt.executeUpdate();
+                }
+                try (PreparedStatement stmt = conn.prepareStatement(endSql)) {
+                    stmt.setInt(1, active.getId());
+                    stmt.executeUpdate();
+                }
+                try (PreparedStatement stmt = conn.prepareStatement(resetRpSql)) {
+                    stmt.executeUpdate();
+                }
+                try (PreparedStatement stmt = conn.prepareStatement(resetRankSql)) {
+                    stmt.executeUpdate();
+                }
+                conn.commit();
+            } catch (SQLException e) {
+                conn.rollback();
+                throw e;
+            } finally {
+                conn.setAutoCommit(true);
+            }
+        }
+        return true;
     }
 }

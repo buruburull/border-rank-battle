@@ -3,6 +3,7 @@ package com.borderrank.battle.command;
 import com.borderrank.battle.BRBPlugin;
 import com.borderrank.battle.manager.LoadoutManager;
 import com.borderrank.battle.manager.TriggerRegistry;
+import com.borderrank.battle.model.Loadout;
 import com.borderrank.battle.model.TriggerData;
 import com.borderrank.battle.util.MessageUtil;
 import org.bukkit.command.Command;
@@ -14,6 +15,7 @@ import org.bukkit.entity.Player;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 /**
  * Command handler for /trigger command.
@@ -79,6 +81,7 @@ public class TriggerCommand implements CommandExecutor, TabCompleter {
 
         BRBPlugin plugin = BRBPlugin.getInstance();
         TriggerRegistry registry = plugin.getTriggerRegistry();
+        LoadoutManager loadoutManager = plugin.getLoadoutManager();
 
         int slot;
         try {
@@ -92,7 +95,7 @@ public class TriggerCommand implements CommandExecutor, TabCompleter {
             return;
         }
 
-        String triggerId = args[2];
+        String triggerId = args[2].toLowerCase();
         TriggerData trigger = registry.get(triggerId);
 
         if (trigger == null) {
@@ -100,7 +103,56 @@ public class TriggerCommand implements CommandExecutor, TabCompleter {
             return;
         }
 
-        MessageUtil.sendSuccessMessage(player, "Trigger " + trigger.getName() + " set in slot " + slot);
+        UUID uuid = player.getUniqueId();
+        int slotIndex = slot - 1; // Convert 1-based to 0-based
+
+        // Get or create default loadout
+        Loadout loadout = loadoutManager.getLoadout(uuid, "default");
+        if (loadout == null) {
+            loadout = new Loadout(uuid, "default");
+            try {
+                loadoutManager.saveLoadout(loadout);
+            } catch (Exception e) {
+                plugin.getLogger().warning("Failed to create default loadout: " + e.getMessage());
+            }
+        }
+
+        // Set the trigger in the slot
+        loadout.setSlot(slotIndex, triggerId);
+        loadout.calculateTotalCost(registry.getAll());
+
+        // Check TP cost limit (15 TP max)
+        if (loadout.getTotalCost() > 15) {
+            loadout.setSlot(slotIndex, ""); // Revert
+            loadout.calculateTotalCost(registry.getAll());
+            MessageUtil.sendErrorMessage(player, "TP limit exceeded! Cost would be " + (loadout.getTotalCost() + trigger.getCost()) + "/15");
+            return;
+        }
+
+        // Save loadout
+        try {
+            loadoutManager.saveLoadout(loadout);
+        } catch (Exception e) {
+            plugin.getLogger().warning("Failed to save loadout: " + e.getMessage());
+        }
+
+        // Give the Minecraft item to the player in the correct hotbar slot
+        org.bukkit.inventory.ItemStack item = new org.bukkit.inventory.ItemStack(trigger.getMcItem());
+        org.bukkit.inventory.meta.ItemMeta meta = item.getItemMeta();
+        if (meta != null) {
+            meta.setDisplayName(org.bukkit.ChatColor.GREEN + trigger.getName());
+            List<String> lore = new ArrayList<>();
+            lore.add(org.bukkit.ChatColor.GRAY + trigger.getDescription());
+            lore.add(org.bukkit.ChatColor.YELLOW + "Cost: " + trigger.getCost() + " TP");
+            if (trigger.getTrionUse() > 0) {
+                lore.add(org.bukkit.ChatColor.AQUA + "Trion: " + trigger.getTrionUse());
+            }
+            meta.setLore(lore);
+            item.setItemMeta(meta);
+        }
+        player.getInventory().setItem(slotIndex, item);
+
+        MessageUtil.sendSuccessMessage(player, trigger.getName() + " をスロット " + slot + " にセット (Cost: " + loadout.getTotalCost() + "/15 TP)");
     }
 
     /**
@@ -112,6 +164,10 @@ public class TriggerCommand implements CommandExecutor, TabCompleter {
             return;
         }
 
+        BRBPlugin plugin = BRBPlugin.getInstance();
+        LoadoutManager loadoutManager = plugin.getLoadoutManager();
+        TriggerRegistry registry = plugin.getTriggerRegistry();
+
         int slot;
         try {
             slot = Integer.parseInt(args[1]);
@@ -124,15 +180,54 @@ public class TriggerCommand implements CommandExecutor, TabCompleter {
             return;
         }
 
-        MessageUtil.sendSuccessMessage(player, "Trigger removed from slot " + slot);
+        UUID uuid = player.getUniqueId();
+        int slotIndex = slot - 1;
+
+        Loadout loadout = loadoutManager.getLoadout(uuid, "default");
+        if (loadout != null) {
+            loadout.setSlot(slotIndex, "");
+            loadout.calculateTotalCost(registry.getAll());
+            try {
+                loadoutManager.saveLoadout(loadout);
+            } catch (Exception e) {
+                plugin.getLogger().warning("Failed to save loadout: " + e.getMessage());
+            }
+        }
+
+        player.getInventory().setItem(slotIndex, null);
+        MessageUtil.sendSuccessMessage(player, "スロット " + slot + " からトリガーを解除しました");
     }
 
     /**
      * Handle /trigger view command - shows current loadout.
      */
     private void handleView(Player player, String[] args) {
+        BRBPlugin plugin = BRBPlugin.getInstance();
+        LoadoutManager loadoutManager = plugin.getLoadoutManager();
+        TriggerRegistry registry = plugin.getTriggerRegistry();
+
+        Loadout loadout = loadoutManager.getLoadout(player.getUniqueId(), "default");
+
         MessageUtil.sendInfoMessage(player, "=== Your Loadout ===");
-        MessageUtil.sendInfoMessage(player, "Total Cost: 0");
+
+        if (loadout == null || !loadout.isActive()) {
+            MessageUtil.sendInfoMessage(player, "No triggers equipped. Use /trigger set <slot> <id>");
+            return;
+        }
+
+        for (int i = 0; i < 8; i++) {
+            String triggerId = loadout.getSlot(i);
+            if (triggerId != null && !triggerId.isEmpty()) {
+                TriggerData td = registry.get(triggerId);
+                String name = td != null ? td.getName() : triggerId;
+                int cost = td != null ? td.getCost() : 0;
+                String slotLabel = (i < 4) ? "Main" : "Sub";
+                MessageUtil.sendInfoMessage(player, "  Slot " + (i + 1) + " [" + slotLabel + "]: " + name + " (Cost: " + cost + ")");
+            }
+        }
+
+        loadout.calculateTotalCost(registry.getAll());
+        MessageUtil.sendInfoMessage(player, "Total Cost: " + loadout.getTotalCost() + "/15 TP");
     }
 
     /**
