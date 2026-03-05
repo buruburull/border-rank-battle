@@ -84,7 +84,7 @@ public class RankCommand implements CommandExecutor, TabCompleter {
             }
         }
 
-        plugin.getQueueManager().addToTeamQueue(team);
+        plugin.getQueueManager().addToTeamQueue(new java.util.HashSet<>(team.getMembers()));
         MessageUtil.sendSuccessMessage(player, "\u00a7bチームキュー\u00a7aに参加しました！対戦チームを待っています...");
 
         for (UUID memberId : team.getMembers()) {
