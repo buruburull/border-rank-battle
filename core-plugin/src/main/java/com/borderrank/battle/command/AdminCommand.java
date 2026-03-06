@@ -3,6 +3,7 @@ package com.borderrank.battle.command;
 import com.borderrank.battle.BRBPlugin;
 import com.borderrank.battle.manager.RankManager;
 import com.borderrank.battle.manager.TriggerRegistry;
+import com.borderrank.battle.model.BRBPlayer;
 import com.borderrank.battle.util.MessageUtil;
 import org.bukkit.Bukkit;
 import org.bukkit.command.Command;
@@ -116,6 +117,14 @@ public class AdminCommand implements CommandExecutor, TabCompleter {
         RankManager rankManager = plugin.getRankManager();
 
         rankManager.setPlayerRP(targetPlayer.getUniqueId(), weaponType, value);
+
+        // Recalculate rank and update tab list name
+        BRBPlayer brPlayer = rankManager.getPlayer(targetPlayer.getUniqueId());
+        if (brPlayer != null) {
+            rankManager.recalculateRank(brPlayer);
+            rankManager.savePlayer(brPlayer);
+        }
+
         MessageUtil.sendSuccessMessage(sender,
             "Set " + targetPlayer.getName() + "'s " + weaponType + " RP to " + value);
     }
@@ -190,9 +199,9 @@ public class AdminCommand implements CommandExecutor, TabCompleter {
             }
         } else if (args.length == 4) {
             if ("rp".equalsIgnoreCase(args[0]) && "set".equalsIgnoreCase(args[1])) {
-                completions.add("ASSAULT_RIFLE");
+                completions.add("ATTACKER");
+                completions.add("SHOOTER");
                 completions.add("SNIPER");
-                completions.add("TRIGGER");
             }
         }
 

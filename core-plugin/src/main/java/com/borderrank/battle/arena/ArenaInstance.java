@@ -394,14 +394,48 @@ public class ArenaInstance {
         });
 
         // Calculate and apply RP
+        // For solo matches (2 players): use Elo formula with RP difference
+        // For team matches: use placement-based formula
+        boolean isSoloMatch = (teamData == null && sortedPlayers.size() == 2);
+
+        // Pre-collect RP values for Elo calculation (solo match)
+        int winnerRP = 0;
+        int loserRP = 0;
+        if (isSoloMatch) {
+            UUID winnerId = sortedPlayers.get(0).getKey();
+            UUID loserId = sortedPlayers.get(1).getKey();
+            WeaponType winnerWt = playerWeaponTypes.getOrDefault(winnerId, WeaponType.ATTACKER);
+            WeaponType loserWt = playerWeaponTypes.getOrDefault(loserId, WeaponType.ATTACKER);
+            var winnerPlayer = rankManager.getPlayer(winnerId);
+            var loserPlayer = rankManager.getPlayer(loserId);
+            if (winnerPlayer != null) {
+                var wrp = winnerPlayer.getWeaponRP(winnerWt);
+                winnerRP = wrp != null ? wrp.getRp() : 1000;
+            }
+            if (loserPlayer != null) {
+                var wrp = loserPlayer.getWeaponRP(loserWt);
+                loserRP = wrp != null ? wrp.getRp() : 1000;
+            }
+        }
+
         int placement = 1;
         for (Map.Entry<UUID, Integer> entry : sortedPlayers) {
             UUID uuid = entry.getKey();
             int playerKills = entry.getValue();
             boolean survived = alivePlayers.contains(uuid);
 
-            // RP calculation: placement bonus + kill bonus + survival bonus
-            int rpGain = rankManager.calculateTeamRP(placement, playerKills, survived);
+            int rpGain;
+            if (isSoloMatch) {
+                // Elo-based: winner gains, loser loses (scaled by RP difference)
+                if (placement == 1) {
+                    rpGain = rankManager.calculateSoloRP(winnerRP, loserRP);
+                } else {
+                    rpGain = rankManager.calculateLossRP(loserRP, winnerRP);
+                }
+            } else {
+                // Team match: placement-based
+                rpGain = rankManager.calculateTeamRP(placement, playerKills, survived);
+            }
 
             // Apply RP to the player's weapon type
             WeaponType wt = playerWeaponTypes.getOrDefault(uuid, WeaponType.ATTACKER);
@@ -466,6 +500,9 @@ public class ArenaInstance {
         final Set<UUID> finalAlive = new HashSet<>(alivePlayers);
         final Map<UUID, WeaponType> finalWeapons = new HashMap<>(playerWeaponTypes);
         final int finalDbMatchId = dbMatchId;
+        final boolean finalIsSolo = isSoloMatch;
+        final int finalWinnerRP = winnerRP;
+        final int finalLoserRP = loserRP;
 
         org.bukkit.Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
             try {
@@ -484,8 +521,15 @@ public class ArenaInstance {
                     boolean survived = finalAlive.contains(uuid);
                     WeaponType wt = finalWeapons.getOrDefault(uuid, WeaponType.ATTACKER);
 
-                    // Calculate RP change (same formula as above)
-                    int rpChange = rankManager.calculateTeamRP(p, playerKills, survived);
+                    // Calculate RP change (same formula as the main RP calculation above)
+                    int rpChange;
+                    if (finalIsSolo) {
+                        rpChange = (p == 1)
+                                ? rankManager.calculateSoloRP(finalWinnerRP, finalLoserRP)
+                                : rankManager.calculateLossRP(finalLoserRP, finalWinnerRP);
+                    } else {
+                        rpChange = rankManager.calculateTeamRP(p, playerKills, survived);
+                    }
 
                     matchDAO.insertResult(
                         finalDbMatchId, uuid, null, wt,
