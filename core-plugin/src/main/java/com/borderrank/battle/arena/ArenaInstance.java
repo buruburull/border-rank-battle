@@ -227,20 +227,20 @@ public class ArenaInstance {
 
             Player killerPlayer = Bukkit.getPlayer(killer);
             Player victimPlayer = Bukkit.getPlayer(victim);
-            if (killerPlayer != null && victimPlayer != null) {
-                MessageUtil.sendSuccessMessage(killerPlayer, victimPlayer.getName() + " を撃破！ (計" + kills.get(killer) + "キル)");
-            }
 
-            // Kill feed: broadcast to all match participants
+            // Kill feed: broadcast to ALL match participants (including killer)
             String killerName = killerPlayer != null ? killerPlayer.getName() : "???";
             String victimName = victimPlayer != null ? victimPlayer.getName() : "???";
-            String killMsg = ChatColor.GRAY + "[" + ChatColor.RED + "\u2620" + ChatColor.GRAY + "] "
-                    + ChatColor.WHITE + killerName + ChatColor.GRAY + " \u00bb "
-                    + ChatColor.RED + victimName + ChatColor.GRAY + " (" + kills.get(killer) + " kills)";
+            int killCount = kills.get(killer);
+            String killMsg = ChatColor.GOLD + ">> " + ChatColor.WHITE + killerName
+                    + ChatColor.GRAY + " -> "
+                    + ChatColor.RED + victimName
+                    + ChatColor.YELLOW + " [" + killCount + " Kill]";
 
             for (UUID uuid : players) {
                 Player p = Bukkit.getPlayer(uuid);
-                if (p != null && !uuid.equals(killer)) {
+                if (p != null) {
+                    p.sendMessage("");
                     p.sendMessage(killMsg);
                 }
             }
@@ -248,12 +248,13 @@ public class ArenaInstance {
             // Bailout (trion zero or other non-player kill)
             Player victimPlayer = Bukkit.getPlayer(victim);
             String victimName = victimPlayer != null ? victimPlayer.getName() : "???";
-            String bailoutMsg = ChatColor.GRAY + "[" + ChatColor.YELLOW + "\u26a0" + ChatColor.GRAY + "] "
-                    + ChatColor.RED + victimName + ChatColor.GRAY + " ベイルアウト！";
+            String bailoutMsg = ChatColor.YELLOW + ">> " + ChatColor.RED + victimName
+                    + ChatColor.GRAY + " - " + ChatColor.YELLOW + "BAILOUT";
 
             for (UUID uuid : players) {
                 Player p = Bukkit.getPlayer(uuid);
                 if (p != null) {
+                    p.sendMessage("");
                     p.sendMessage(bailoutMsg);
                 }
             }
@@ -272,7 +273,7 @@ public class ArenaInstance {
         for (UUID uuid : players) {
             Player p = Bukkit.getPlayer(uuid);
             if (p != null) {
-                p.sendMessage(ChatColor.AQUA + "残り " + aliveCount + " 人");
+                p.sendMessage(ChatColor.AQUA + ">> " + ChatColor.WHITE + "残り " + aliveCount + " 人");
             }
         }
 
@@ -298,6 +299,16 @@ public class ArenaInstance {
 
     private void tickCountdown() {
         countdownRemaining--;
+
+        // Update boss bar during countdown (show full bar with countdown title)
+        BRBPlugin plugin = BRBPlugin.getInstance();
+        ScoreboardManager scoreboardManager = plugin.getScoreboardManager();
+        for (UUID uuid : players) {
+            Player player = Bukkit.getPlayer(uuid);
+            if (player != null) {
+                scoreboardManager.updateBossBar(player, timeLimitSec, timeLimitSec);
+            }
+        }
 
         if (countdownRemaining <= 0) {
             state = ArenaState.ACTIVE;

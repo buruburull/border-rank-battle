@@ -162,6 +162,17 @@ public class DatabaseManager {
                     "  INDEX idx_uuid (uuid)" +
                     ")"
             );
+
+            // Fix ENUM columns to VARCHAR to avoid data truncation issues
+            try {
+                stmt.executeUpdate("ALTER TABLE match_results MODIFY COLUMN weapon_type VARCHAR(20) NOT NULL");
+            } catch (Exception ignored) { /* already VARCHAR or table just created */ }
+            try {
+                stmt.executeUpdate("ALTER TABLE match_history MODIFY COLUMN match_type VARCHAR(10) NOT NULL");
+            } catch (Exception ignored) { /* already VARCHAR or table just created */ }
+            try {
+                stmt.executeUpdate("ALTER TABLE weapon_rp MODIFY COLUMN weapon_type VARCHAR(20) NOT NULL");
+            } catch (Exception ignored) { /* already VARCHAR or table just created */ }
         }
     }
 

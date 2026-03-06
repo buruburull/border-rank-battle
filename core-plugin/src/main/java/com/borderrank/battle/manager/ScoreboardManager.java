@@ -1,9 +1,10 @@
 package com.borderrank.battle.manager;
 
+import net.kyori.adventure.bossbar.BossBar;
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.format.NamedTextColor;
+import net.kyori.adventure.text.format.TextDecoration;
 import org.bukkit.Bukkit;
-import org.bukkit.boss.BarColor;
-import org.bukkit.boss.BarStyle;
-import org.bukkit.boss.BossBar;
 import org.bukkit.entity.Player;
 import org.bukkit.scoreboard.DisplaySlot;
 import org.bukkit.scoreboard.Objective;
@@ -38,13 +39,15 @@ public class ScoreboardManager {
         playerObjectives.put(playerId, objective);
         player.setScoreboard(scoreboard);
 
-        // Create boss bar (match timer)
-        BossBar bossBar = Bukkit.createBossBar(
-                "\u00a7e\u00a7l\u23f1 \u6b8b\u308a\u6642\u9593: " + formatTime(timeLimitSec),
-                BarColor.YELLOW, BarStyle.SEGMENTED_10
+        // Create boss bar using Adventure API (Paper native) for reliable color control
+        BossBar bossBar = BossBar.bossBar(
+                Component.text("\u23f1 \u6b8b\u308a\u6642\u9593: " + formatTime(timeLimitSec),
+                        NamedTextColor.YELLOW, TextDecoration.BOLD),
+                1.0f,
+                BossBar.Color.GREEN,
+                BossBar.Overlay.NOTCHED_10
         );
-        bossBar.setProgress(1.0);
-        bossBar.addPlayer(player);
+        player.showBossBar(bossBar);
         playerBossBars.put(playerId, bossBar);
 
         // Initialize lines
@@ -93,28 +96,29 @@ public class ScoreboardManager {
     }
 
     /**
-     * Updates boss bar with remaining time.
+     * Updates boss bar with remaining time using Adventure API.
      */
     public void updateBossBar(Player player, int timeRemainingSec, int timeLimitSec) {
         UUID playerId = player.getUniqueId();
         BossBar bossBar = playerBossBars.get(playerId);
         if (bossBar == null) return;
 
-        double progress = timeLimitSec > 0 ? (double) timeRemainingSec / timeLimitSec : 0;
-        progress = Math.max(0, Math.min(1.0, progress));
-        bossBar.setProgress(progress);
+        float progress = timeLimitSec > 0 ? (float) timeRemainingSec / timeLimitSec : 0;
+        progress = Math.max(0, Math.min(1.0f, progress));
+        bossBar.progress(progress);
 
         // Color changes based on remaining time
-        BarColor color;
-        if (progress > 0.5) {
-            color = BarColor.GREEN;
-        } else if (progress > 0.2) {
-            color = BarColor.YELLOW;
+        BossBar.Color color;
+        if (progress > 0.5f) {
+            color = BossBar.Color.GREEN;
+        } else if (progress > 0.2f) {
+            color = BossBar.Color.YELLOW;
         } else {
-            color = BarColor.RED;
+            color = BossBar.Color.RED;
         }
-        bossBar.setColor(color);
-        bossBar.setTitle("\u00a7e\u00a7l\u23f1 \u6b8b\u308a\u6642\u9593: \u00a7f" + formatTime(timeRemainingSec));
+        bossBar.color(color);
+        bossBar.name(Component.text("\u23f1 \u6b8b\u308a\u6642\u9593: " + formatTime(timeRemainingSec),
+                NamedTextColor.YELLOW, TextDecoration.BOLD));
     }
 
     /**
@@ -140,10 +144,10 @@ public class ScoreboardManager {
         playerScoreboards.remove(playerId);
         playerObjectives.remove(playerId);
 
-        // Remove boss bar
+        // Remove boss bar (Adventure API)
         BossBar bossBar = playerBossBars.remove(playerId);
         if (bossBar != null) {
-            bossBar.removeAll();
+            player.hideBossBar(bossBar);
         }
     }
 
