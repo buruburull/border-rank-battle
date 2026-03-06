@@ -27,10 +27,10 @@ public class RankManager {
     // Pending invites: invitee UUID -> team name
     private final Map<UUID, String> pendingInvites = new HashMap<>();
 
-    // RP thresholds for rank progression
-    private static final int B_RANK_THRESHOLD = 1500;
-    private static final int A_RANK_THRESHOLD = 3000;
-    private static final int S_RANK_THRESHOLD = 5000;
+    // RP thresholds for rank progression (based on TOTAL RP across all weapons)
+    private static final int B_RANK_THRESHOLD = 5000;
+    private static final int A_RANK_THRESHOLD = 10000;
+    private static final int S_RANK_THRESHOLD = 15000;
 
     // RP calculation constants
     private static final int BASE_RP_CHANGE = 30;
@@ -280,16 +280,12 @@ public class RankManager {
         if (player == null) {
             return false;
         }
-
-        // Check if any weapon type has reached B rank threshold
-        return player.getWeaponRPs().values().stream()
-                .mapToInt(WeaponRP::getRp)
-                .anyMatch(rp -> rp >= B_RANK_THRESHOLD);
+        return player.getTotalRP() >= B_RANK_THRESHOLD;
     }
 
     /**
      * Checks if a player has achieved promotion to A rank.
-     * Requirement: any weapon's RP >= 3000.
+     * Requirement: total RP >= 10000.
      *
      * @param player the player to check
      * @return true if the player qualifies for A rank
@@ -298,15 +294,12 @@ public class RankManager {
         if (player == null) {
             return false;
         }
-
-        return player.getWeaponRPs().values().stream()
-                .mapToInt(WeaponRP::getRp)
-                .anyMatch(rp -> rp >= A_RANK_THRESHOLD);
+        return player.getTotalRP() >= A_RANK_THRESHOLD;
     }
 
     /**
      * Checks if a player has achieved promotion to S rank.
-     * Requirement: any weapon's RP >= 5000.
+     * Requirement: total RP >= 15000.
      *
      * @param player the player to check
      * @return true if the player qualifies for S rank
@@ -315,10 +308,7 @@ public class RankManager {
         if (player == null) {
             return false;
         }
-
-        return player.getWeaponRPs().values().stream()
-                .mapToInt(WeaponRP::getRp)
-                .anyMatch(rp -> rp >= S_RANK_THRESHOLD);
+        return player.getTotalRP() >= S_RANK_THRESHOLD;
     }
 
     /**
@@ -360,17 +350,14 @@ public class RankManager {
      */
     public String getHighestRankTier(BRBPlayer player) {
         if (player == null) {
-            return "D";
+            return "C";
         }
 
-        int maxRP = player.getWeaponRPs().values().stream()
-                .mapToInt(WeaponRP::getRp)
-                .max()
-                .orElse(0);
+        int totalRP = player.getTotalRP();
 
-        if (maxRP >= S_RANK_THRESHOLD) return "S";
-        if (maxRP >= A_RANK_THRESHOLD) return "A";
-        if (maxRP >= B_RANK_THRESHOLD) return "B";
+        if (totalRP >= S_RANK_THRESHOLD) return "S";
+        if (totalRP >= A_RANK_THRESHOLD) return "A";
+        if (totalRP >= B_RANK_THRESHOLD) return "B";
         return "C";
     }
 
@@ -513,13 +500,13 @@ public class RankManager {
     public void recalculateRank(BRBPlayer brPlayer) {
         if (brPlayer == null) return;
 
-        int maxRP = brPlayer.getHighestRP();
+        int totalRP = brPlayer.getTotalRP();
         RankClass newRank;
-        if (maxRP >= S_RANK_THRESHOLD) {
+        if (totalRP >= S_RANK_THRESHOLD) {
             newRank = RankClass.S;
-        } else if (maxRP >= A_RANK_THRESHOLD) {
+        } else if (totalRP >= A_RANK_THRESHOLD) {
             newRank = RankClass.A;
-        } else if (maxRP >= B_RANK_THRESHOLD) {
+        } else if (totalRP >= B_RANK_THRESHOLD) {
             newRank = RankClass.B;
         } else {
             newRank = RankClass.C;
