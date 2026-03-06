@@ -152,15 +152,24 @@ public class CombatListener implements Listener {
         return (triggerId != null && !triggerId.isEmpty()) ? triggerId : null;
     }
 
+    /**
+     * Check if the attacker is behind the victim using dot product.
+     * Gets victim's facing direction and direction from victim to attacker.
+     * If dot product is negative, attacker is behind victim.
+     */
     private boolean isBehind(Player attacker, Player victim) {
-        float victimYaw = victim.getLocation().getYaw();
-        double dx = attacker.getLocation().getX() - victim.getLocation().getX();
-        double dz = attacker.getLocation().getZ() - victim.getLocation().getZ();
-        double attackerAngle = Math.atan2(dz, dx) * 180 / Math.PI;
-        victimYaw = (victimYaw % 360 + 360) % 360;
-        attackerAngle = (attackerAngle % 360 + 360) % 360;
-        double angleDiff = Math.abs(victimYaw - attackerAngle);
-        if (angleDiff > 180) angleDiff = 360 - angleDiff;
-        return angleDiff > 90;
+        // Victim's facing direction (horizontal only)
+        org.bukkit.util.Vector facing = victim.getLocation().getDirection().setY(0);
+        if (facing.lengthSquared() < 0.001) return false;
+        facing = facing.normalize();
+
+        // Direction from victim to attacker (horizontal only)
+        org.bukkit.util.Vector toAttacker = attacker.getLocation().toVector()
+                .subtract(victim.getLocation().toVector()).setY(0);
+        if (toAttacker.lengthSquared() < 0.001) return false;
+        toAttacker = toAttacker.normalize();
+
+        // Dot product < -0.3 means attacker is in ~110 degree cone behind victim
+        return facing.dot(toAttacker) < -0.3;
     }
 }

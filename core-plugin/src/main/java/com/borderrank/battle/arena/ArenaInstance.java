@@ -317,10 +317,12 @@ public class ArenaInstance {
                 MessageUtil.sendInfoMessage(player, "=== マッチ結果 ===");
                 MessageUtil.sendInfoMessage(player, "順位: #" + placement + " | キル: " + playerKills + " | RP: " + rpText);
 
-                // Restore player state
+                // Restore player state (only if alive - dead players handled by respawn)
                 player.getInventory().clear();
-                player.setHealth(player.getMaxHealth());
-                player.setFoodLevel(20);
+                if (!player.isDead()) {
+                    player.setHealth(player.getMaxHealth());
+                    player.setFoodLevel(20);
+                }
             }
 
             placement++;
