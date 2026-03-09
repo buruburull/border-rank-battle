@@ -9,6 +9,7 @@ import java.util.*;
 public class QueueManager {
 
     private final Set<UUID> soloQueue = new HashSet<>();
+    private final Set<UUID> practiceQueue = new HashSet<>();
     private final Map<Integer, Set<UUID>> teamQueue = new HashMap<>();
     private int nextTeamId = 0;
 
@@ -61,6 +62,7 @@ public class QueueManager {
      */
     public void removeFromQueues(UUID playerId) {
         soloQueue.remove(playerId);
+        practiceQueue.remove(playerId);
 
         var teamIdsToRemove = new ArrayList<Integer>();
         for (var entry : teamQueue.entrySet()) {
@@ -84,6 +86,7 @@ public class QueueManager {
      */
     public boolean removePlayer(UUID playerId) {
         boolean inSolo = soloQueue.remove(playerId);
+        boolean inPractice = practiceQueue.remove(playerId);
         boolean inTeam = false;
 
         var teamIdsToRemove = new ArrayList<Integer>();
@@ -100,7 +103,7 @@ public class QueueManager {
             teamQueue.remove(teamId);
         }
 
-        return inSolo || inTeam;
+        return inSolo || inPractice || inTeam;
     }
 
     /**
@@ -111,6 +114,9 @@ public class QueueManager {
      */
     public boolean isInQueue(UUID playerId) {
         if (soloQueue.contains(playerId)) {
+            return true;
+        }
+        if (practiceQueue.contains(playerId)) {
             return true;
         }
 
@@ -236,10 +242,51 @@ public class QueueManager {
     }
 
     /**
+     * Adds a player to the practice queue.
+     */
+    public void addToPracticeQueue(UUID playerId) {
+        practiceQueue.add(playerId);
+    }
+
+    /**
+     * Checks if a player is in the practice queue.
+     */
+    public boolean isInPracticeQueue(UUID playerId) {
+        return practiceQueue.contains(playerId);
+    }
+
+    /**
+     * Attempts to form a practice match.
+     */
+    public Set<UUID> tryPracticeMatch(int minPlayers) {
+        if (practiceQueue.size() < minPlayers) {
+            return new HashSet<>();
+        }
+
+        Set<UUID> matched = new HashSet<>();
+        var iterator = practiceQueue.iterator();
+
+        for (int i = 0; i < minPlayers && iterator.hasNext(); i++) {
+            matched.add(iterator.next());
+            iterator.remove();
+        }
+
+        return matched;
+    }
+
+    /**
+     * Gets the practice queue size.
+     */
+    public int getPracticeQueueSize() {
+        return practiceQueue.size();
+    }
+
+    /**
      * Clears all queues.
      */
     public void clearQueues() {
         soloQueue.clear();
+        practiceQueue.clear();
         teamQueue.clear();
         nextTeamId = 0;
     }

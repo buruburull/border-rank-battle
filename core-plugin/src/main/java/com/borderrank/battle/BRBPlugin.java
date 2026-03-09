@@ -167,6 +167,42 @@ public class BRBPlugin extends JavaPlugin {
                 }
             }
         }, 100, 100); // Start after 5 sec, repeat every 5 sec
+
+        // Check practice queue for matchmaking every 5 seconds
+        getServer().getScheduler().scheduleSyncRepeatingTask(this, () -> {
+            if (queueManager == null || matchManager == null || mapManager == null) return;
+
+            java.util.Set<java.util.UUID> matched = queueManager.tryPracticeMatch(2);
+            if (!matched.isEmpty()) {
+                MapData mapData = mapManager.selectRandomMap();
+                if (mapData == null) {
+                    getLogger().info("No maps available for practice, keeping " + matched.size() + " players in queue.");
+                    for (java.util.UUID uuid : matched) {
+                        queueManager.addToPracticeQueue(uuid);
+                        org.bukkit.entity.Player player = getServer().getPlayer(uuid);
+                        if (player != null) {
+                            com.borderrank.battle.util.MessageUtil.sendMessage(player,
+                                org.bukkit.ChatColor.YELLOW + "全マップが使用中です。空きが出るまでお待ちください...");
+                        }
+                    }
+                    return;
+                }
+
+                int matchId = matchManager.createSoloMatch(matched, mapData, true);
+                if (matchId > 0) {
+                    getLogger().info("Practice match #" + matchId + " created on map '" + mapData.getDisplayName() + "' with " + matched.size() + " players");
+                    for (java.util.UUID uuid : matched) {
+                        org.bukkit.entity.Player player = getServer().getPlayer(uuid);
+                        if (player != null) {
+                            com.borderrank.battle.util.MessageUtil.sendSuccessMessage(player,
+                                "\u00a7b【練習マッチ】\u00a7a マッチが見つかりました！マッチ #" + matchId + " | マップ: " + mapData.getDisplayName());
+                        }
+                    }
+                } else {
+                    mapManager.releaseMap(mapData.getMapId());
+                }
+            }
+        }, 100, 100);
     }
 
     /**

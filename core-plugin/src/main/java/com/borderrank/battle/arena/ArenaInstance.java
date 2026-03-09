@@ -60,6 +60,8 @@ public class ArenaInstance {
     private final Map<Integer, Set<UUID>> teamData;
     // DB match_id (set after createMatch call)
     private int dbMatchId = -1;
+    // Practice mode flag (no RP changes, no DB recording)
+    private boolean practice = false;
 
     public ArenaInstance(int matchId, MapData mapData, int timeLimitSec) {
         this(matchId, mapData, timeLimitSec, null);
@@ -220,29 +222,34 @@ public class ArenaInstance {
             ScoreboardManager sbManager = plugin.getScoreboardManager();
             sbManager.createMatchScoreboard(player, mapData.getDisplayName(), timeLimitSec);
 
-            MessageUtil.sendMessage(player, ChatColor.YELLOW + "マッチ開始！マップ: " + ChatColor.WHITE + mapData.getDisplayName() + ChatColor.YELLOW + " カウントダウン: " + countdownRemaining);
+            String matchLabel = practice ? (ChatColor.AQUA + "【練習マッチ】") : (ChatColor.YELLOW + "マッチ開始！");
+            MessageUtil.sendMessage(player, matchLabel + ChatColor.YELLOW + " マップ: " + ChatColor.WHITE + mapData.getDisplayName() + ChatColor.YELLOW + " カウントダウン: " + countdownRemaining);
             playerIdx++;
         }
 
         // Start trion tick loop (HP leak, sustain cost, XP bar update, bailout check)
         trionManager.startTickLoop(plugin, alivePlayers);
 
-        // Record match start in DB (async to avoid blocking main thread)
-        org.bukkit.Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
-            try {
-                MatchDAO matchDAO = plugin.getMatchDAO();
-                if (matchDAO == null) return;
-                Season season = plugin.getRankManager().getActiveSeason();
-                int seasonId = season != null ? season.getId() : 1; // fallback to season 1
-                String matchType = (teamData != null) ? "team" : "solo";
-                dbMatchId = matchDAO.createMatch(matchType, mapData.getMapId(), seasonId);
-                if (dbMatchId > 0) {
-                    plugin.getLogger().info("Match #" + matchId + " recorded in DB as match_id=" + dbMatchId + " on map " + mapData.getDisplayName());
+        // Record match start in DB (async to avoid blocking main thread) - skip for practice
+        if (!practice) {
+            org.bukkit.Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
+                try {
+                    MatchDAO matchDAO = plugin.getMatchDAO();
+                    if (matchDAO == null) return;
+                    Season season = plugin.getRankManager().getActiveSeason();
+                    int seasonId = season != null ? season.getId() : 1; // fallback to season 1
+                    String matchType = (teamData != null) ? "team" : "solo";
+                    dbMatchId = matchDAO.createMatch(matchType, mapData.getMapId(), seasonId);
+                    if (dbMatchId > 0) {
+                        plugin.getLogger().info("Match #" + matchId + " recorded in DB as match_id=" + dbMatchId + " on map " + mapData.getDisplayName());
+                    }
+                } catch (Exception e) {
+                    plugin.getLogger().warning("Failed to record match start: " + e.getMessage());
                 }
-            } catch (Exception e) {
-                plugin.getLogger().warning("Failed to record match start: " + e.getMessage());
-            }
-        });
+            });
+        } else {
+            plugin.getLogger().info("Practice match #" + matchId + " started on map " + mapData.getDisplayName() + " (no DB recording)");
+        }
     }
 
     /**
@@ -456,43 +463,52 @@ public class ArenaInstance {
             int playerKills = entry.getValue();
             boolean survived = alivePlayers.contains(uuid);
 
-            int rpGain;
-            if (isSoloMatch) {
-                if (placement == 1) {
-                    rpGain = rankManager.calculateSoloRP(winnerRP, loserRP);
-                } else {
-                    rpGain = rankManager.calculateLossRP(loserRP, winnerRP);
-                }
-            } else {
-                rpGain = rankManager.calculateTeamRP(placement, playerKills, survived);
-            }
-
-            // Apply RP to the player's weapon type
-            WeaponType wt = playerWeaponTypes.getOrDefault(uuid, WeaponType.ATTACKER);
-            rankManager.addPlayerRP(uuid, wt.name(), rpGain);
-
-            // Save player data and update rank
-            var brPlayer = rankManager.getPlayer(uuid);
-            if (brPlayer != null) {
-                var wrp = brPlayer.getWeaponRP(wt);
-                if (wrp != null) {
+            int rpGain = 0;
+            if (!practice) {
+                // Calculate and apply RP only in ranked matches
+                if (isSoloMatch) {
                     if (placement == 1) {
-                        wrp.setWins(wrp.getWins() + 1);
+                        rpGain = rankManager.calculateSoloRP(winnerRP, loserRP);
                     } else {
-                        wrp.setLosses(wrp.getLosses() + 1);
+                        rpGain = rankManager.calculateLossRP(loserRP, winnerRP);
                     }
+                } else {
+                    rpGain = rankManager.calculateTeamRP(placement, playerKills, survived);
                 }
-                rankManager.recalculateRank(brPlayer);
-                rankManager.savePlayer(brPlayer);
+
+                // Apply RP to the player's weapon type
+                WeaponType wt = playerWeaponTypes.getOrDefault(uuid, WeaponType.ATTACKER);
+                rankManager.addPlayerRP(uuid, wt.name(), rpGain);
+
+                // Save player data and update rank
+                var brPlayer = rankManager.getPlayer(uuid);
+                if (brPlayer != null) {
+                    var wrp = brPlayer.getWeaponRP(wt);
+                    if (wrp != null) {
+                        if (placement == 1) {
+                            wrp.setWins(wrp.getWins() + 1);
+                        } else {
+                            wrp.setLosses(wrp.getLosses() + 1);
+                        }
+                    }
+                    rankManager.recalculateRank(brPlayer);
+                    rankManager.savePlayer(brPlayer);
+                }
             }
 
             // Notify player
             Player player = Bukkit.getPlayer(uuid);
             if (player != null) {
-                String rpText = rpGain >= 0 ? (ChatColor.GREEN + "+" + rpGain) : (ChatColor.RED + "" + rpGain);
-                MessageUtil.sendInfoMessage(player, "=== マッチ結果 ===");
-                MessageUtil.sendInfoMessage(player, "マップ: " + mapData.getDisplayName());
-                MessageUtil.sendInfoMessage(player, "順位: #" + placement + " | キル: " + playerKills + " | RP: " + rpText);
+                if (practice) {
+                    MessageUtil.sendInfoMessage(player, ChatColor.AQUA + "=== 練習マッチ結果 ===");
+                    MessageUtil.sendInfoMessage(player, "マップ: " + mapData.getDisplayName());
+                    MessageUtil.sendInfoMessage(player, "順位: #" + placement + " | キル: " + playerKills + ChatColor.GRAY + " (RPに影響なし)");
+                } else {
+                    String rpText = rpGain >= 0 ? (ChatColor.GREEN + "+" + rpGain) : (ChatColor.RED + "" + rpGain);
+                    MessageUtil.sendInfoMessage(player, "=== マッチ結果 ===");
+                    MessageUtil.sendInfoMessage(player, "マップ: " + mapData.getDisplayName());
+                    MessageUtil.sendInfoMessage(player, "順位: #" + placement + " | キル: " + playerKills + " | RP: " + rpText);
+                }
 
                 // Restore player state
                 player.getInventory().clear();
@@ -525,7 +541,8 @@ public class ArenaInstance {
             }
         }
 
-        // Save match results to DB (async)
+        // Save match results to DB (async) - skip for practice
+        if (practice) return;
         final List<Map.Entry<UUID, Integer>> finalSorted = new ArrayList<>(sortedPlayers);
         final Set<UUID> finalAlive = new HashSet<>(alivePlayers);
         final Map<UUID, WeaponType> finalWeapons = new HashMap<>(playerWeaponTypes);
@@ -645,4 +662,6 @@ public class ArenaInstance {
     public String getMapName() { return mapData.getMapId(); }
     public MapData getMapData() { return mapData; }
     public BlockTracker getBlockTracker() { return blockTracker; }
+    public boolean isPractice() { return practice; }
+    public void setPractice(boolean practice) { this.practice = practice; }
 }

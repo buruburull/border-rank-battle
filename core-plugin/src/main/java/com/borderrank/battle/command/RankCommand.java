@@ -51,6 +51,7 @@ public class RankCommand implements CommandExecutor, TabCompleter {
         switch (subcommand) {
             case "solo" -> handleSolo(player);
             case "team" -> handleTeam(player);
+            case "practice" -> handlePractice(player);
             case "cancel" -> handleCancel(player);
             case "stats" -> handleStats(player, args);
             case "top" -> handleTop(player, args);
@@ -69,6 +70,19 @@ public class RankCommand implements CommandExecutor, TabCompleter {
         if (!plugin.getQueueManager().isInQueue(player.getUniqueId())) {
             plugin.getQueueManager().addToSoloQueue(player.getUniqueId());
             MessageUtil.sendSuccessMessage(player, "\u00a7eソロキュー\u00a7aに参加しました！対戦相手を待っています...");
+        } else {
+            MessageUtil.sendErrorMessage(player, "既にキューに参加しています！");
+        }
+    }
+
+    /**
+     * Handle /rank practice command - adds player to practice queue.
+     */
+    private void handlePractice(Player player) {
+        BRBPlugin plugin = BRBPlugin.getInstance();
+        if (!plugin.getQueueManager().isInQueue(player.getUniqueId())) {
+            plugin.getQueueManager().addToPracticeQueue(player.getUniqueId());
+            MessageUtil.sendSuccessMessage(player, "\u00a7b練習キュー\u00a7aに参加しました！対戦相手を待っています...\u00a77(RPに影響なし)");
         } else {
             MessageUtil.sendErrorMessage(player, "既にキューに参加しています！");
         }
@@ -455,6 +469,7 @@ public class RankCommand implements CommandExecutor, TabCompleter {
         if (args.length == 1) {
             completions.add("solo");
             completions.add("team");
+            completions.add("practice");
             completions.add("cancel");
             completions.add("stats");
             completions.add("top");

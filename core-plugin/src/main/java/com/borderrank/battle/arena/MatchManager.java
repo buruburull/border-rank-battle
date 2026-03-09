@@ -19,9 +19,14 @@ public class MatchManager {
     }
 
     public int createSoloMatch(Set<UUID> players, MapData mapData) {
+        return createSoloMatch(players, mapData, false);
+    }
+
+    public int createSoloMatch(Set<UUID> players, MapData mapData, boolean practice) {
         if (players.size() < 2) return -1;
         int matchId = nextMatchId++;
         ArenaInstance arena = new ArenaInstance(matchId, mapData, 300);
+        arena.setPractice(practice);
         for (UUID uuid : players) {
             arena.addPlayer(uuid);
         }
