@@ -157,6 +157,10 @@ public class AdminCommand implements CommandExecutor, TabCompleter {
                 MessageUtil.sendErrorMessage(sender, "シーズンがすでに進行中です。先に /bradmin season end で終了してください。");
                 return;
             }
+            if (rankManager.seasonNameExists(seasonName)) {
+                MessageUtil.sendErrorMessage(sender, "シーズン名 '" + seasonName + "' は既に使用されています。別の名前を指定してください。");
+                return;
+            }
             if (rankManager.startSeason(seasonName)) {
                 MessageUtil.sendSuccessMessage(sender, "シーズン '" + seasonName + "' を開始しました！");
                 // Broadcast to all online players

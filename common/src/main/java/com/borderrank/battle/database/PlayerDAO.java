@@ -363,6 +363,25 @@ public class PlayerDAO {
     }
 
     /**
+     * Checks if a season name already exists in the database.
+     *
+     * @param seasonName the season name to check
+     * @return true if the name already exists
+     * @throws SQLException if a database error occurs
+     */
+    public boolean seasonNameExists(String seasonName) throws SQLException {
+        String query = "SELECT COUNT(*) FROM seasons WHERE season_name = ?";
+        try (Connection conn = databaseManager.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(query)) {
+            stmt.setString(1, seasonName);
+            try (ResultSet rs = stmt.executeQuery()) {
+                if (rs.next()) return rs.getInt(1) > 0;
+            }
+        }
+        return false;
+    }
+
+    /**
      * Starts a new season. The caller must ensure no season is currently active.
      *
      * @param seasonName the name of the new season

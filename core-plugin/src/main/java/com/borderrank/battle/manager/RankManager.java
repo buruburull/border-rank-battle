@@ -413,6 +413,21 @@ public class RankManager {
      * @param seasonName the name of the season
      * @return true if the season was started successfully
      */
+    /**
+     * Checks if a season name already exists in the database.
+     *
+     * @param seasonName the season name to check
+     * @return true if the name already exists
+     */
+    public boolean seasonNameExists(String seasonName) {
+        try {
+            return playerDAO.seasonNameExists(seasonName);
+        } catch (Exception e) {
+            e.printStackTrace();
+            return false;
+        }
+    }
+
     public boolean startSeason(String seasonName) {
         try {
             if (playerDAO.getActiveSeason() != null) {
