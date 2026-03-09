@@ -76,8 +76,9 @@ public class BlockChangeListener implements Listener {
     }
 
     /**
-     * Track blocks placed by players during matches (e.g. Escudo glass walls).
-     * Records the original state (usually AIR) so it can be restored.
+     * Track blocks placed by players during matches.
+     * Records the original state (before placement) so it can be restored.
+     * This handles: dropped blocks from TNT picked up and placed, dirt/cobble placed, etc.
      */
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onBlockPlace(BlockPlaceEvent event) {
@@ -86,7 +87,12 @@ public class BlockChangeListener implements Listener {
         ArenaInstance match = plugin.getMatchManager().getPlayerMatch(player.getUniqueId());
         if (match == null) return;
 
-        // Record the block that was replaced (original state before placement)
-        match.getBlockTracker().recordBlockChange(event.getBlockReplacedState().getBlock());
+        // Use the replaced state's BlockData (original before placement)
+        // because the block has already been placed when this event fires
+        org.bukkit.block.BlockState replacedState = event.getBlockReplacedState();
+        match.getBlockTracker().recordBlockChange(
+                replacedState.getLocation(),
+                replacedState.getBlockData()
+        );
     }
 }

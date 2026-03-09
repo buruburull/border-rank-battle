@@ -25,11 +25,24 @@ public class BlockTracker {
     /**
      * Record the original state of a block before it is changed.
      * Only records the FIRST change at each position (preserves true original state).
+     * Use this for BlockBreakEvent and EntityExplodeEvent (block not yet changed).
      */
     public void recordBlockChange(Block block) {
         String key = blockKey(block);
         if (!changedBlocks.containsKey(key)) {
             changedBlocks.put(key, new BlockSnapshot(block));
+        }
+    }
+
+    /**
+     * Record the original state of a block using explicit BlockData.
+     * Use this for BlockPlaceEvent where the block has ALREADY been replaced,
+     * so we need the replaced state's BlockData instead of the current block's data.
+     */
+    public void recordBlockChange(Location location, BlockData originalData) {
+        String key = location.getWorld().getName() + ":" + location.getBlockX() + "," + location.getBlockY() + "," + location.getBlockZ();
+        if (!changedBlocks.containsKey(key)) {
+            changedBlocks.put(key, new BlockSnapshot(location, originalData));
         }
     }
 
@@ -76,6 +89,11 @@ public class BlockTracker {
         BlockSnapshot(Block block) {
             this.location = block.getLocation();
             this.blockData = block.getBlockData().clone();
+        }
+
+        BlockSnapshot(Location location, BlockData blockData) {
+            this.location = location.clone();
+            this.blockData = blockData.clone();
         }
 
         void restore() {
