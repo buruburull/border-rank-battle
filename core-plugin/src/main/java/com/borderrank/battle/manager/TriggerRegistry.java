@@ -19,6 +19,7 @@ public class TriggerRegistry {
 
     private final Map<String, TriggerData> triggers = new HashMap<>();
     private final JavaPlugin plugin;
+    private File resolvedTriggersFile;
 
     /**
      * Category section names in triggers.yml mapped to TriggerCategory enum.
@@ -65,6 +66,7 @@ public class TriggerRegistry {
         }
 
         if (triggersFile.exists()) {
+            this.resolvedTriggersFile = triggersFile;
             FileConfiguration triggersConfig = YamlConfiguration.loadConfiguration(triggersFile);
             load(triggersConfig);
             plugin.getLogger().info("Loaded " + triggers.size() + " triggers from triggers.yml");
@@ -221,5 +223,13 @@ public class TriggerRegistry {
      */
     public int getTriggerCount() {
         return triggers.size();
+    }
+
+    /**
+     * Returns the resolved triggers.yml File that was successfully loaded.
+     * Used by MapManager to load maps from the same file.
+     */
+    public File getResolvedTriggersFile() {
+        return resolvedTriggersFile;
     }
 }

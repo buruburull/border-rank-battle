@@ -74,6 +74,12 @@ public class BRBPlugin extends JavaPlugin {
         rankManager = new RankManager(new PlayerDAO(databaseManager));
         queueManager = new QueueManager();
         mapManager = new MapManager(this);
+        // Load maps from the same triggers.yml that TriggerRegistry found
+        if (triggerRegistry.getResolvedTriggersFile() != null) {
+            mapManager.loadMaps(triggerRegistry.getResolvedTriggersFile());
+        } else {
+            getLogger().warning("TriggerRegistry did not resolve triggers.yml - maps not loaded.");
+        }
         scoreboardManager = new ScoreboardManager();
         matchManager = new MatchManager();
         matchDAO = new MatchDAO(databaseManager);

@@ -320,3 +320,36 @@ match:
     trion_leak_enabled: true
     friendly_fire: false
     describe_mode_enabled: true
+
+# ============================================
+# MAP DEFINITIONS
+# ============================================
+# Each map defines spawn points and optional boundaries.
+# Spawn points format: "x,y,z"
+# At least 2 spawn points required (for solo), 4 recommended (for team).
+# Coordinates should be set after building the arenas in-game.
+# Use /bradmin map list to check map status.
+maps:
+  arena_factory:
+    display_name: "工場地帯"
+    world: "world"
+    spawn_points:
+      - "100,65,100"
+      - "150,65,150"
+      - "100,65,150"
+      - "150,65,100"
+    boundaries:
+      corner1: "80,0,80"
+      corner2: "170,128,170"
+
+  arena_residential:
+    display_name: "住宅街"
+    world: "world"
+    spawn_points:
+      - "300,65,100"
+      - "350,65,150"
+      - "300,65,150"
+      - "350,65,100"
+    boundaries:
+      corner1: "280,0,80"
+      corner2: "370,128,170"

@@ -21,21 +21,21 @@ public class MapManager {
 
     public MapManager(JavaPlugin plugin) {
         this.plugin = plugin;
-        loadMaps();
     }
 
     /**
-     * Loads map definitions from config/triggers.yml maps section.
+     * Loads map definitions from a FileConfiguration (triggers.yml).
+     * Called by BRBPlugin after TriggerRegistry has resolved the triggers.yml file.
      */
-    public void loadMaps() {
+    public void loadMaps(File triggersFile) {
         mapRegistry.clear();
 
-        File triggersFile = new File(plugin.getDataFolder().getParentFile().getParentFile(), "config/triggers.yml");
-        if (!triggersFile.exists()) {
-            plugin.getLogger().warning("triggers.yml not found, no maps loaded.");
+        if (triggersFile == null || !triggersFile.exists()) {
+            plugin.getLogger().warning("[MapManager] triggers.yml file not provided or not found, no maps loaded.");
             return;
         }
 
+        plugin.getLogger().info("[MapManager] Loading maps from: " + triggersFile.getAbsolutePath());
         FileConfiguration config = YamlConfiguration.loadConfiguration(triggersFile);
         ConfigurationSection mapsSection = config.getConfigurationSection("maps");
         if (mapsSection == null) {
@@ -205,9 +205,14 @@ public class MapManager {
     }
 
     /**
-     * Reload maps from config.
+     * Reload maps from config. Resolves triggers.yml the same way TriggerRegistry does.
      */
     public void reloadMaps() {
-        loadMaps();
+        File triggersFile = new File(plugin.getDataFolder(), "triggers.yml");
+        if (!triggersFile.exists()) {
+            File configFolder = new File(plugin.getServer().getWorldContainer(), "config");
+            triggersFile = new File(configFolder, "triggers.yml");
+        }
+        loadMaps(triggersFile);
     }
 }
