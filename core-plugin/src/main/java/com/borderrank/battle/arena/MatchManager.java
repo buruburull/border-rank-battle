@@ -1,6 +1,6 @@
 package com.borderrank.battle.arena;
 
-import org.bukkit.Bukkit;
+import com.borderrank.battle.model.MapData;
 
 import java.util.HashMap;
 import java.util.HashSet;
@@ -18,10 +18,10 @@ public class MatchManager {
         this.nextMatchId = 1;
     }
 
-    public int createSoloMatch(Set<UUID> players, String mapName) {
+    public int createSoloMatch(Set<UUID> players, MapData mapData) {
         if (players.size() < 2) return -1;
         int matchId = nextMatchId++;
-        ArenaInstance arena = new ArenaInstance(matchId, mapName, 300);
+        ArenaInstance arena = new ArenaInstance(matchId, mapData, 300);
         for (UUID uuid : players) {
             arena.addPlayer(uuid);
         }
@@ -30,10 +30,10 @@ public class MatchManager {
         return matchId;
     }
 
-    public int createTeamMatch(Map<Integer, Set<UUID>> teamData, String mapName) {
+    public int createTeamMatch(Map<Integer, Set<UUID>> teamData, MapData mapData) {
         if (teamData.size() < 2) return -1;
         int matchId = nextMatchId++;
-        ArenaInstance arena = new ArenaInstance(matchId, mapName, 600, teamData);
+        ArenaInstance arena = new ArenaInstance(matchId, mapData, 600, teamData);
         activeMatches.put(matchId, arena);
         arena.start();
         return matchId;

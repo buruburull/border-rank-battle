@@ -8,6 +8,7 @@ import com.borderrank.battle.manager.ScoreboardManager;
 import com.borderrank.battle.manager.TriggerRegistry;
 import com.borderrank.battle.manager.TrionManager;
 import com.borderrank.battle.model.Loadout;
+import com.borderrank.battle.model.MapData;
 import com.borderrank.battle.model.Season;
 import com.borderrank.battle.model.TriggerData;
 import com.borderrank.battle.model.WeaponType;
@@ -47,7 +48,8 @@ public class ArenaInstance {
     private final Set<UUID> alivePlayers;
     private final Map<UUID, Integer> kills;
     private final Map<UUID, WeaponType> playerWeaponTypes;
-    private final String mapName;
+    private final MapData mapData;
+    private final BlockTracker blockTracker;
     private final long startTime;
     private final int timeLimitSec;
     private int countdownRemaining;
@@ -57,15 +59,16 @@ public class ArenaInstance {
     // DB match_id (set after createMatch call)
     private int dbMatchId = -1;
 
-    public ArenaInstance(int matchId, String mapName, int timeLimitSec) {
-        this(matchId, mapName, timeLimitSec, null);
+    public ArenaInstance(int matchId, MapData mapData, int timeLimitSec) {
+        this(matchId, mapData, timeLimitSec, null);
     }
 
-    public ArenaInstance(int matchId, String mapName, int timeLimitSec, Map<Integer, Set<UUID>> teamData) {
+    public ArenaInstance(int matchId, MapData mapData, int timeLimitSec, Map<Integer, Set<UUID>> teamData) {
         this.matchId = matchId;
-        this.mapName = mapName;
+        this.mapData = mapData;
         this.timeLimitSec = timeLimitSec;
         this.teamData = teamData != null ? new HashMap<>(teamData) : null;
+        this.blockTracker = new BlockTracker(matchId);
         this.state = ArenaState.WAITING;
         this.players = new HashSet<>();
         this.alivePlayers = new HashSet<>();
@@ -110,13 +113,25 @@ public class ArenaInstance {
             kills.put(uuid, 0);
         }
 
+        // Resolve the world for this map
+        World mapWorld = Bukkit.getWorld(mapData.getWorldName());
+        if (mapWorld == null) {
+            mapWorld = Bukkit.getWorlds().get(0); // fallback to default world
+            plugin.getLogger().warning("World '" + mapData.getWorldName() + "' not found, using default world.");
+        }
+
         int spawnIndex = 0;
         for (UUID uuid : players) {
             Player player = Bukkit.getPlayer(uuid);
             if (player == null) continue;
 
-            // Teleport to spawn - find safe location on top of ground
-            Location spawnLoc = getSafeSpawnLocation(player.getWorld(), spawnIndex * 10, 0);
+            // Teleport to map spawn point
+            Location spawnLoc = mapData.getSpawnPoint(spawnIndex, mapWorld);
+            if (spawnLoc == null) {
+                // Fallback: use safe spawn with offset
+                spawnLoc = getSafeSpawnLocation(mapWorld, spawnIndex * 10, 0);
+                plugin.getLogger().warning("No spawn point #" + spawnIndex + " for map " + mapData.getMapId() + ", using fallback.");
+            }
             player.teleport(spawnLoc);
 
             // Clear inventory
@@ -167,7 +182,6 @@ public class ArenaInstance {
                 }
                 if (needsArrows) {
                     // Give 64 arrows in slot 9 (main inventory, not hotbar - avoids trigger slot conflict)
-                    // Bows/crossbows auto-pull arrows from anywhere in inventory
                     player.getInventory().setItem(9, new ItemStack(Material.ARROW, 64));
                 }
 
@@ -191,9 +205,9 @@ public class ArenaInstance {
 
             // Create match scoreboard and boss bar
             ScoreboardManager sbManager = plugin.getScoreboardManager();
-            sbManager.createMatchScoreboard(player, mapName, timeLimitSec);
+            sbManager.createMatchScoreboard(player, mapData.getDisplayName(), timeLimitSec);
 
-            MessageUtil.sendMessage(player, ChatColor.YELLOW + "マッチ開始！カウントダウン: " + countdownRemaining);
+            MessageUtil.sendMessage(player, ChatColor.YELLOW + "マッチ開始！マップ: " + ChatColor.WHITE + mapData.getDisplayName() + ChatColor.YELLOW + " カウントダウン: " + countdownRemaining);
             spawnIndex++;
         }
 
@@ -208,9 +222,9 @@ public class ArenaInstance {
                 Season season = plugin.getRankManager().getActiveSeason();
                 int seasonId = season != null ? season.getId() : 1; // fallback to season 1
                 String matchType = (teamData != null) ? "team" : "solo";
-                dbMatchId = matchDAO.createMatch(matchType, mapName, seasonId);
+                dbMatchId = matchDAO.createMatch(matchType, mapData.getMapId(), seasonId);
                 if (dbMatchId > 0) {
-                    plugin.getLogger().info("Match #" + matchId + " recorded in DB as match_id=" + dbMatchId);
+                    plugin.getLogger().info("Match #" + matchId + " recorded in DB as match_id=" + dbMatchId + " on map " + mapData.getDisplayName());
                 }
             } catch (Exception e) {
                 plugin.getLogger().warning("Failed to record match start: " + e.getMessage());
@@ -346,7 +360,7 @@ public class ArenaInstance {
             double trion = trionManager.getTrion(uuid);
             int maxTrion = trionManager.getMaxTrion(uuid);
 
-            scoreboardManager.updateFullScoreboard(player, mapName, playerKills,
+            scoreboardManager.updateFullScoreboard(player, mapData.getDisplayName(), playerKills,
                     aliveCount, timeRemaining, trion, maxTrion);
             scoreboardManager.updateBossBar(player, timeRemaining, timeLimitSec);
         }
@@ -372,9 +386,10 @@ public class ArenaInstance {
     }
 
     /**
-     * End the match - calculate RP and announce results.
+     * End the match - restore blocks, calculate RP and announce results.
      */
     public void end() {
+        if (state == ArenaState.ENDING || state == ArenaState.FINISHED) return;
         state = ArenaState.ENDING;
 
         BRBPlugin plugin = BRBPlugin.getInstance();
@@ -382,6 +397,12 @@ public class ArenaInstance {
 
         // Stop trion tick loop
         plugin.getTrionManager().stopTickLoop();
+
+        // ★ Restore all block changes (before anything else)
+        blockTracker.restoreAllBlocks();
+
+        // ★ Release map back to available pool
+        plugin.getMapManager().releaseMap(mapData.getMapId());
 
         // Sort by kills descending, then by alive status
         List<Map.Entry<UUID, Integer>> sortedPlayers = new ArrayList<>(kills.entrySet());
@@ -394,8 +415,6 @@ public class ArenaInstance {
         });
 
         // Calculate and apply RP
-        // For solo matches (2 players): use Elo formula with RP difference
-        // For team matches: use placement-based formula
         boolean isSoloMatch = (teamData == null && sortedPlayers.size() == 2);
 
         // Pre-collect RP values for Elo calculation (solo match)
@@ -426,14 +445,12 @@ public class ArenaInstance {
 
             int rpGain;
             if (isSoloMatch) {
-                // Elo-based: winner gains, loser loses (scaled by RP difference)
                 if (placement == 1) {
                     rpGain = rankManager.calculateSoloRP(winnerRP, loserRP);
                 } else {
                     rpGain = rankManager.calculateLossRP(loserRP, winnerRP);
                 }
             } else {
-                // Team match: placement-based
                 rpGain = rankManager.calculateTeamRP(placement, playerKills, survived);
             }
 
@@ -444,7 +461,6 @@ public class ArenaInstance {
             // Save player data and update rank
             var brPlayer = rankManager.getPlayer(uuid);
             if (brPlayer != null) {
-                // Update wins/losses
                 var wrp = brPlayer.getWeaponRP(wt);
                 if (wrp != null) {
                     if (placement == 1) {
@@ -453,7 +469,6 @@ public class ArenaInstance {
                         wrp.setLosses(wrp.getLosses() + 1);
                     }
                 }
-                // Recalculate rank class and update tab list name
                 rankManager.recalculateRank(brPlayer);
                 rankManager.savePlayer(brPlayer);
             }
@@ -463,9 +478,10 @@ public class ArenaInstance {
             if (player != null) {
                 String rpText = rpGain >= 0 ? (ChatColor.GREEN + "+" + rpGain) : (ChatColor.RED + "" + rpGain);
                 MessageUtil.sendInfoMessage(player, "=== マッチ結果 ===");
+                MessageUtil.sendInfoMessage(player, "マップ: " + mapData.getDisplayName());
                 MessageUtil.sendInfoMessage(player, "順位: #" + placement + " | キル: " + playerKills + " | RP: " + rpText);
 
-                // Restore player state (only if alive - dead players handled by respawn)
+                // Restore player state
                 player.getInventory().clear();
                 if (!player.isDead()) {
                     player.setHealth(player.getMaxHealth());
@@ -509,11 +525,9 @@ public class ArenaInstance {
                 MatchDAO matchDAO = plugin.getMatchDAO();
                 if (matchDAO == null || finalDbMatchId <= 0) return;
 
-                // Calculate duration
                 int durationSec = (int) ((System.currentTimeMillis() - startTime) / 1000);
                 matchDAO.endMatch(finalDbMatchId, durationSec);
 
-                // Save each player's result
                 int p = 1;
                 for (Map.Entry<UUID, Integer> entry : finalSorted) {
                     UUID uuid = entry.getKey();
@@ -521,7 +535,6 @@ public class ArenaInstance {
                     boolean survived = finalAlive.contains(uuid);
                     WeaponType wt = finalWeapons.getOrDefault(uuid, WeaponType.ATTACKER);
 
-                    // Calculate RP change (same formula as the main RP calculation above)
                     int rpChange;
                     if (finalIsSolo) {
                         rpChange = (p == 1)
@@ -551,47 +564,37 @@ public class ArenaInstance {
      */
     private void applyTriggerEnchantments(ItemStack item, String triggerId) {
         switch (triggerId) {
-            // Sniper: Egret - POWER V (high damage charged shots)
             case "egret" -> {
                 item.addUnsafeEnchantment(Enchantment.POWER, 5);
             }
-            // Sniper: Lightning - Piercing (arrows pass through enemies)
             case "lightning" -> {
                 item.addUnsafeEnchantment(Enchantment.POWER, 2);
                 item.addUnsafeEnchantment(Enchantment.PUNCH, 1);
             }
-            // Sniper: Ibis - Max power (ultimate sniper)
             case "ibis" -> {
                 item.addUnsafeEnchantment(Enchantment.POWER, 7);
                 item.addUnsafeEnchantment(Enchantment.PUNCH, 2);
             }
-            // Shooter: Asteroid - Standard bow with slight power
             case "asteroid" -> {
                 item.addUnsafeEnchantment(Enchantment.POWER, 1);
             }
-            // Shooter: Viper - Quick fire bow
             case "viper" -> {
                 item.addUnsafeEnchantment(Enchantment.POWER, 1);
                 item.addUnsafeEnchantment(Enchantment.FLAME, 1);
             }
-            // Shooter: Hound - Trident with loyalty (returns after throw) + riptide
             case "hound" -> {
                 item.addUnsafeEnchantment(Enchantment.LOYALTY, 3);
             }
-            // Shooter: Meteora - Crossbow with multishot for AoE feel
             case "meteora" -> {
                 item.addUnsafeEnchantment(Enchantment.MULTISHOT, 1);
                 item.addUnsafeEnchantment(Enchantment.QUICK_CHARGE, 2);
             }
-            // Attacker: Kogetsu - Sharpness V (high damage)
             case "kogetsu" -> {
                 item.addUnsafeEnchantment(Enchantment.SHARPNESS, 5);
             }
-            // Attacker: Scorpion - Sharpness III + faster attack
             case "scorpion" -> {
                 item.addUnsafeEnchantment(Enchantment.SHARPNESS, 3);
             }
-            // Attacker: Raygust - Moderate sharpness
             case "raygust" -> {
                 item.addUnsafeEnchantment(Enchantment.SHARPNESS, 2);
                 item.addUnsafeEnchantment(Enchantment.KNOCKBACK, 1);
@@ -601,13 +604,12 @@ public class ArenaInstance {
 
     /**
      * Find a safe spawn location - on top of the highest block, not inside ground.
+     * Used as fallback when map spawn points are not defined.
      */
     private Location getSafeSpawnLocation(World world, int x, int z) {
-        // Get highest non-air block at this position
         int highestY = world.getHighestBlockYAt(x, z);
         Location loc = new Location(world, x + 0.5, highestY + 1.0, z + 0.5);
 
-        // Ensure the two blocks above are air (player needs 2 blocks of space)
         Block feetBlock = loc.getBlock();
         Block headBlock = feetBlock.getRelative(0, 1, 0);
         if (feetBlock.getType() != Material.AIR) {
@@ -626,5 +628,7 @@ public class ArenaInstance {
     public ArenaState getState() { return state; }
     public Set<UUID> getPlayers() { return new HashSet<>(players); }
     public int getPlayerKills(UUID uuid) { return kills.getOrDefault(uuid, 0); }
-    public String getMapName() { return mapName; }
+    public String getMapName() { return mapData.getMapId(); }
+    public MapData getMapData() { return mapData; }
+    public BlockTracker getBlockTracker() { return blockTracker; }
 }

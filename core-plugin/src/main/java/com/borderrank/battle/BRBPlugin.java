@@ -4,11 +4,13 @@ import com.borderrank.battle.database.DatabaseManager;
 import com.borderrank.battle.database.LoadoutDAO;
 import com.borderrank.battle.database.MatchDAO;
 import com.borderrank.battle.database.PlayerDAO;
+import com.borderrank.battle.listener.BlockChangeListener;
 import com.borderrank.battle.listener.ChatListener;
 import com.borderrank.battle.listener.CombatListener;
 import com.borderrank.battle.listener.PlayerConnectionListener;
 import com.borderrank.battle.listener.ProjectileListener;
 import com.borderrank.battle.listener.TriggerUseListener;
+import com.borderrank.battle.model.MapData;
 import com.borderrank.battle.manager.LoadoutManager;
 import com.borderrank.battle.manager.MapManager;
 import com.borderrank.battle.manager.QueueManager;
@@ -88,6 +90,7 @@ public class BRBPlugin extends JavaPlugin {
         getServer().getPluginManager().registerEvents(new TriggerUseListener(), this);
         getServer().getPluginManager().registerEvents(new ProjectileListener(), this);
         getServer().getPluginManager().registerEvents(new ChatListener(), this);
+        getServer().getPluginManager().registerEvents(new BlockChangeListener(), this);
 
         // Start ticking tasks
         startTickingTasks();
@@ -121,20 +124,40 @@ public class BRBPlugin extends JavaPlugin {
 
         // Check queue for matchmaking every 5 seconds
         getServer().getScheduler().scheduleSyncRepeatingTask(this, () -> {
-            if (queueManager == null || matchManager == null) return;
+            if (queueManager == null || matchManager == null || mapManager == null) return;
 
             // Try to form a solo match (minimum 2 players)
             java.util.Set<java.util.UUID> matched = queueManager.trySoloMatch(2);
             if (!matched.isEmpty()) {
-                int matchId = matchManager.createSoloMatch(matched, "arena_default");
+                // Select an available map
+                MapData mapData = mapManager.selectRandomMap();
+                if (mapData == null) {
+                    // No maps available - put players back in queue
+                    getLogger().info("No maps available, keeping " + matched.size() + " players in queue.");
+                    for (java.util.UUID uuid : matched) {
+                        queueManager.addToSoloQueue(uuid);
+                        org.bukkit.entity.Player player = getServer().getPlayer(uuid);
+                        if (player != null) {
+                            com.borderrank.battle.util.MessageUtil.sendMessage(player,
+                                org.bukkit.ChatColor.YELLOW + "全マップが使用中です。空きが出るまでお待ちください...");
+                        }
+                    }
+                    return;
+                }
+
+                int matchId = matchManager.createSoloMatch(matched, mapData);
                 if (matchId > 0) {
-                    getLogger().info("Solo match #" + matchId + " created with " + matched.size() + " players");
+                    getLogger().info("Solo match #" + matchId + " created on map '" + mapData.getDisplayName() + "' with " + matched.size() + " players");
                     for (java.util.UUID uuid : matched) {
                         org.bukkit.entity.Player player = getServer().getPlayer(uuid);
                         if (player != null) {
-                            com.borderrank.battle.util.MessageUtil.sendSuccessMessage(player, "マッチが見つかりました！マッチ #" + matchId);
+                            com.borderrank.battle.util.MessageUtil.sendSuccessMessage(player,
+                                "マッチが見つかりました！マッチ #" + matchId + " | マップ: " + mapData.getDisplayName());
                         }
                     }
+                } else {
+                    // Match creation failed - release map
+                    mapManager.releaseMap(mapData.getMapId());
                 }
             }
         }, 100, 100); // Start after 5 sec, repeat every 5 sec

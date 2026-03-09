@@ -1,10 +1,13 @@
 package com.borderrank.battle.command;
 
 import com.borderrank.battle.BRBPlugin;
+import com.borderrank.battle.manager.MapManager;
 import com.borderrank.battle.manager.RankManager;
 import com.borderrank.battle.manager.TriggerRegistry;
 import com.borderrank.battle.model.BRBPlayer;
+import com.borderrank.battle.model.MapData;
 import com.borderrank.battle.util.MessageUtil;
+import org.bukkit.ChatColor;
 import org.bukkit.Bukkit;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
@@ -30,7 +33,7 @@ public class AdminCommand implements CommandExecutor, TabCompleter {
         }
 
         if (args.length == 0) {
-            MessageUtil.sendInfoMessage(sender, "Usage: /bradmin <trigger|forcestart|rp|season>");
+            MessageUtil.sendInfoMessage(sender, "Usage: /bradmin <trigger|forcestart|rp|season|map>");
             return true;
         }
 
@@ -41,6 +44,7 @@ public class AdminCommand implements CommandExecutor, TabCompleter {
             case "forcestart" -> handleForceStart(sender);
             case "rp" -> handleRP(sender, args);
             case "season" -> handleSeason(sender, args);
+            case "map" -> handleMap(sender, args);
             default -> MessageUtil.sendErrorMessage(sender, "Unknown subcommand: " + subcommand);
         }
 
@@ -169,6 +173,49 @@ public class AdminCommand implements CommandExecutor, TabCompleter {
         }
     }
 
+    /**
+     * Handle /bradmin map command - view and manage maps.
+     */
+    private void handleMap(CommandSender sender, String[] args) {
+        if (args.length < 2) {
+            MessageUtil.sendErrorMessage(sender, "Usage: /bradmin map <list|reset|reload>");
+            return;
+        }
+
+        BRBPlugin plugin = BRBPlugin.getInstance();
+        MapManager mapManager = plugin.getMapManager();
+        String action = args[1].toLowerCase();
+
+        switch (action) {
+            case "list" -> {
+                MessageUtil.sendInfoMessage(sender, "=== マップ一覧 ===");
+                MessageUtil.sendInfoMessage(sender, "全 " + mapManager.getMapCount() + " マップ / 空き " + mapManager.getAvailableCount());
+                for (MapData map : mapManager.getAllMaps()) {
+                    String status = map.isInUse()
+                        ? ChatColor.RED + "使用中"
+                        : ChatColor.GREEN + "空き";
+                    MessageUtil.sendInfoMessage(sender,
+                        " - " + ChatColor.WHITE + map.getDisplayName()
+                        + ChatColor.GRAY + " (" + map.getMapId() + ") "
+                        + status
+                        + ChatColor.GRAY + " [スポーン: " + map.getSpawnPointCount() + "]");
+                }
+                if (mapManager.getMapCount() == 0) {
+                    MessageUtil.sendMessage(sender, ChatColor.YELLOW + "マップが定義されていません。config/triggers.yml の maps セクションを確認してください。");
+                }
+            }
+            case "reset" -> {
+                mapManager.resetMapStates();
+                MessageUtil.sendSuccessMessage(sender, "全マップの状態をリセットしました。");
+            }
+            case "reload" -> {
+                mapManager.reloadMaps();
+                MessageUtil.sendSuccessMessage(sender, "マップを再読み込みしました。" + mapManager.getMapCount() + " マップ検出。");
+            }
+            default -> MessageUtil.sendErrorMessage(sender, "Unknown map action: " + action);
+        }
+    }
+
     @Override
     public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
         if (!sender.hasPermission("brb.admin")) {
@@ -182,6 +229,7 @@ public class AdminCommand implements CommandExecutor, TabCompleter {
             completions.add("forcestart");
             completions.add("rp");
             completions.add("season");
+            completions.add("map");
         } else if (args.length == 2) {
             if ("trigger".equalsIgnoreCase(args[0])) {
                 completions.add("reload");
@@ -190,6 +238,10 @@ public class AdminCommand implements CommandExecutor, TabCompleter {
             } else if ("season".equalsIgnoreCase(args[0])) {
                 completions.add("start");
                 completions.add("end");
+            } else if ("map".equalsIgnoreCase(args[0])) {
+                completions.add("list");
+                completions.add("reset");
+                completions.add("reload");
             }
         } else if (args.length == 3) {
             if ("rp".equalsIgnoreCase(args[0]) && "set".equalsIgnoreCase(args[1])) {
