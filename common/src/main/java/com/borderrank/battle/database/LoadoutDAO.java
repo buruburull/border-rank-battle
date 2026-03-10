@@ -26,7 +26,7 @@ public class LoadoutDAO {
      */
     public List<Loadout> loadPlayerLoadouts(UUID playerId) {
         List<Loadout> loadouts = new ArrayList<>();
-        String sql = "SELECT loadout_name, slot_1, slot_2, slot_3, slot_4, slot_5, slot_6, slot_7, slot_8 " +
+        String sql = "SELECT loadout_name, slot1, slot2, slot3, slot4, slot5, slot6, slot7, slot8 " +
                      "FROM player_loadouts WHERE uuid = ?";
 
         try (Connection conn = dbManager.getConnection();
@@ -38,7 +38,7 @@ public class LoadoutDAO {
                     String name = rs.getString("loadout_name");
                     String[] slots = new String[8];
                     for (int i = 0; i < 8; i++) {
-                        String val = rs.getString("slot_" + (i + 1));
+                        String val = rs.getString("slot" + (i + 1));
                         slots[i] = val != null ? val : "";
                     }
                     Loadout loadout = new Loadout(playerId, name, slots);
@@ -56,12 +56,11 @@ public class LoadoutDAO {
      * Saves a loadout to the database (INSERT or UPDATE on duplicate).
      */
     public void saveLoadout(Loadout loadout) {
-        String sql = "INSERT INTO player_loadouts (uuid, loadout_name, slot_1, slot_2, slot_3, slot_4, slot_5, slot_6, slot_7, slot_8, total_cost) " +
-                     "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) " +
+        String sql = "INSERT INTO player_loadouts (uuid, loadout_name, slot1, slot2, slot3, slot4, slot5, slot6, slot7, slot8) " +
+                     "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) " +
                      "ON DUPLICATE KEY UPDATE " +
-                     "slot_1 = VALUES(slot_1), slot_2 = VALUES(slot_2), slot_3 = VALUES(slot_3), slot_4 = VALUES(slot_4), " +
-                     "slot_5 = VALUES(slot_5), slot_6 = VALUES(slot_6), slot_7 = VALUES(slot_7), slot_8 = VALUES(slot_8), " +
-                     "total_cost = VALUES(total_cost)";
+                     "slot1 = VALUES(slot1), slot2 = VALUES(slot2), slot3 = VALUES(slot3), slot4 = VALUES(slot4), " +
+                     "slot5 = VALUES(slot5), slot6 = VALUES(slot6), slot7 = VALUES(slot7), slot8 = VALUES(slot8)";
 
         try (Connection conn = dbManager.getConnection();
              PreparedStatement stmt = conn.prepareStatement(sql)) {
@@ -75,7 +74,6 @@ public class LoadoutDAO {
                 stmt.setString(3 + i, (val != null && !val.isEmpty()) ? val : null);
             }
 
-            stmt.setInt(11, loadout.getTotalCost());
             stmt.executeUpdate();
         } catch (SQLException e) {
             e.printStackTrace();
