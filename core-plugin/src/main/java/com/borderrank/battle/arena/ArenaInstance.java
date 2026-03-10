@@ -520,6 +520,12 @@ public class ArenaInstance {
                     player.setFoodLevel(20);
                 }
 
+                // Teleport to lobby
+                org.bukkit.Location lobby = plugin.getLobbyLocation();
+                if (lobby != null && !player.isDead()) {
+                    player.teleport(lobby);
+                }
+
                 // Remove scoreboard and boss bar
                 plugin.getScoreboardManager().removeScoreboard(player);
             }
@@ -548,7 +554,8 @@ public class ArenaInstance {
             Player spec = Bukkit.getPlayer(specUuid);
             if (spec != null) {
                 spec.setGameMode(GameMode.ADVENTURE);
-                spec.teleport(spec.getWorld().getSpawnLocation());
+                org.bukkit.Location lobby = BRBPlugin.getInstance().getLobbyLocation();
+                spec.teleport(lobby != null ? lobby : spec.getWorld().getSpawnLocation());
                 MessageUtil.sendInfoMessage(spec, "マッチが終了しました。ロビーに戻ります。");
             }
         }
@@ -717,7 +724,8 @@ public class ArenaInstance {
         if (player == null) return;
 
         player.setGameMode(GameMode.ADVENTURE);
-        player.teleport(player.getWorld().getSpawnLocation());
+        org.bukkit.Location lobby = BRBPlugin.getInstance().getLobbyLocation();
+        player.teleport(lobby != null ? lobby : player.getWorld().getSpawnLocation());
         MessageUtil.sendInfoMessage(player, "観戦を終了しました。");
     }
 

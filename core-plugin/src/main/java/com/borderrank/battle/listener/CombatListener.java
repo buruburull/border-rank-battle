@@ -138,7 +138,8 @@ public class CombatListener implements Listener {
     public void onRespawn(PlayerRespawnEvent event) {
         Player player = event.getPlayer();
         if (!matchDeaths.remove(player.getUniqueId())) return;
-        event.setRespawnLocation(player.getWorld().getSpawnLocation());
+        org.bukkit.Location lobby = BRBPlugin.getInstance().getLobbyLocation();
+        event.setRespawnLocation(lobby != null ? lobby : player.getWorld().getSpawnLocation());
         BRBPlugin plugin = BRBPlugin.getInstance();
         plugin.getServer().getScheduler().scheduleSyncDelayedTask(plugin, () -> {
             player.getInventory().clear();

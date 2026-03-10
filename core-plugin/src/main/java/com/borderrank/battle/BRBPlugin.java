@@ -23,6 +23,9 @@ import com.borderrank.battle.command.TriggerCommand;
 import com.borderrank.battle.command.TeamCommand;
 import com.borderrank.battle.command.AdminCommand;
 import com.borderrank.battle.arena.MatchManager;
+import org.bukkit.Bukkit;
+import org.bukkit.Location;
+import org.bukkit.World;
 import org.bukkit.plugin.java.JavaPlugin;
 
 /**
@@ -43,6 +46,7 @@ public class BRBPlugin extends JavaPlugin {
     private ScoreboardManager scoreboardManager;
     private MatchManager matchManager;
     private MatchDAO matchDAO;
+    private Location lobbyLocation;
 
     @Override
     public void onEnable() {
@@ -83,6 +87,9 @@ public class BRBPlugin extends JavaPlugin {
         scoreboardManager = new ScoreboardManager();
         matchManager = new MatchManager();
         matchDAO = new MatchDAO(databaseManager);
+
+        // Load lobby location from triggers.yml
+        loadLobbyLocation();
 
         // Register commands
         getCommand("rank").setExecutor(new RankCommand());
@@ -203,6 +210,54 @@ public class BRBPlugin extends JavaPlugin {
                 }
             }
         }, 100, 100);
+    }
+
+    /**
+     * Load lobby location from triggers.yml.
+     */
+    private void loadLobbyLocation() {
+        if (triggerRegistry.getResolvedTriggersFile() == null) {
+            getLogger().warning("triggers.yml not found - using world spawn as lobby.");
+            return;
+        }
+
+        org.bukkit.configuration.file.YamlConfiguration triggersConfig =
+            org.bukkit.configuration.file.YamlConfiguration.loadConfiguration(triggerRegistry.getResolvedTriggersFile());
+
+        String worldName = triggersConfig.getString("lobby.world", "world");
+        String locationStr = triggersConfig.getString("lobby.location", "0,65,0");
+        float yaw = (float) triggersConfig.getDouble("lobby.yaw", 0.0);
+        float pitch = (float) triggersConfig.getDouble("lobby.pitch", 0.0);
+
+        World world = Bukkit.getWorld(worldName);
+        if (world == null) {
+            getLogger().warning("Lobby world '" + worldName + "' not found - using default world spawn.");
+            return;
+        }
+
+        String[] parts = locationStr.split(",");
+        if (parts.length >= 3) {
+            try {
+                double x = Double.parseDouble(parts[0].trim());
+                double y = Double.parseDouble(parts[1].trim());
+                double z = Double.parseDouble(parts[2].trim());
+                lobbyLocation = new Location(world, x, y, z, yaw, pitch);
+                getLogger().info("Lobby location loaded: " + worldName + " (" + x + ", " + y + ", " + z + ")");
+            } catch (NumberFormatException e) {
+                getLogger().warning("Invalid lobby location format: " + locationStr);
+            }
+        }
+    }
+
+    /**
+     * Get the lobby location. Falls back to world spawn if not configured.
+     */
+    public Location getLobbyLocation() {
+        if (lobbyLocation != null) {
+            return lobbyLocation.clone();
+        }
+        World world = Bukkit.getWorld("world");
+        return world != null ? world.getSpawnLocation() : null;
     }
 
     /**

@@ -322,6 +322,17 @@ match:
     describe_mode_enabled: true
 
 # ============================================
+# LOBBY SETTINGS
+# ============================================
+# Players teleport here on login and after match end.
+# Format: "x,y,z" or "x,y,z,yaw,pitch"
+lobby:
+  world: "world"
+  location: "0,65,0"
+  yaw: 0.0
+  pitch: 0.0
+
+# ============================================
 # MAP DEFINITIONS
 # ============================================
 # Each map defines spawn points and optional boundaries.

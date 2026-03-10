@@ -109,8 +109,9 @@ public class TrionManager {
 
         Bukkit.broadcastMessage("\u00A7c[BAILOUT] " + player.getName() + " \u30C8\u30EA\u30AA\u30F3\u5207\u308C\uFF01");
 
-        // Teleport to hub
-        player.teleport(player.getWorld().getSpawnLocation());
+        // Teleport to lobby
+        org.bukkit.Location lobby = BRBPlugin.getInstance().getLobbyLocation();
+        player.teleport(lobby != null ? lobby : player.getWorld().getSpawnLocation());
         player.setGameMode(GameMode.SURVIVAL);
         player.setHealth(player.getMaxHealth());
         player.setFoodLevel(20);

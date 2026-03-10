@@ -6,6 +6,8 @@ import com.borderrank.battle.manager.TrionManager;
 import com.borderrank.battle.model.BRBPlayer;
 import com.borderrank.battle.model.RankClass;
 import com.borderrank.battle.util.MessageUtil;
+import org.bukkit.GameMode;
+import org.bukkit.Location;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
@@ -61,12 +63,19 @@ public class PlayerConnectionListener implements Listener {
             TrionManager trionManager = plugin.getTrionManager();
             trionManager.initPlayer(uuid, 1000); // Default trion value
 
-            // Notify player and set tab list name (must run on main thread)
+            // Notify player, teleport to lobby, and set tab list name (must run on main thread)
             final BRBPlayer finalBrPlayer = brPlayer;
             plugin.getServer().getScheduler().runTask(plugin, () -> {
+                // Teleport to lobby
+                Location lobby = plugin.getLobbyLocation();
+                if (lobby != null) {
+                    player.teleport(lobby);
+                    player.setGameMode(GameMode.ADVENTURE);
+                }
+
                 rankManager.updateTabListName(player, finalBrPlayer);
-                MessageUtil.sendMessage(player, "Welcome to Border Rank Battle!");
-                MessageUtil.sendMessage(player, "Use /rank for ranking info, /trigger for loadouts");
+                MessageUtil.sendMessage(player, "§aボーダーランクバトルへようこそ！");
+                MessageUtil.sendMessage(player, "§7/rank でランキング情報、/trigger でロードアウト設定");
             });
         });
     }
