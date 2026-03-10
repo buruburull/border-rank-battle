@@ -10,9 +10,11 @@ import org.bukkit.GameMode;
 import org.bukkit.Location;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
+import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
+import org.bukkit.event.player.PlayerRespawnEvent;
 
 import java.util.UUID;
 
@@ -78,6 +80,20 @@ public class PlayerConnectionListener implements Listener {
                 MessageUtil.sendMessage(player, "§7/rank でランキング情報、/trigger でロードアウト設定");
             });
         });
+    }
+
+    /**
+     * Called when any player respawns (not just match deaths).
+     * Always sends players to lobby on respawn.
+     * Priority LOW so CombatListener (HIGHEST) handles match deaths first.
+     */
+    @EventHandler(priority = EventPriority.LOW)
+    public void onRespawn(PlayerRespawnEvent event) {
+        BRBPlugin plugin = BRBPlugin.getInstance();
+        Location lobby = plugin.getLobbyLocation();
+        if (lobby != null) {
+            event.setRespawnLocation(lobby);
+        }
     }
 
     /**
