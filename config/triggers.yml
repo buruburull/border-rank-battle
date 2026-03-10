@@ -335,7 +335,7 @@ lobby:
 
   # ---- NPC Settings ----
   # NPCs are villagers with custom names. Right-click to interact.
-  # Actions: rank_solo, rank_practice, trigger_view, rank_stats, rank_top
+  # Actions: rank_solo, rank_team, rank_practice, trigger_view, rank_stats, rank_top
   npcs:
     ranked_match:
       location: "3,65,0"
@@ -361,6 +361,12 @@ lobby:
       name: "§d§l戦績確認"
       subtitle: "§7右クリックで表示"
       action: "rank_stats"
+    team_match:
+      location: "3,65,3"
+      yaw: 180.0
+      name: "§c§lチームマッチ"
+      subtitle: "§7右クリックで参加"
+      action: "rank_team"
 
   # ---- Hologram Settings ----
   # Floating text displays using TextDisplay entities.

@@ -316,6 +316,7 @@ public class LobbyManager implements Listener {
 
         switch (action) {
             case "rank_solo" -> player.performCommand("rank solo");
+            case "rank_team" -> player.performCommand("rank team");
             case "rank_practice" -> player.performCommand("rank practice");
             case "trigger_view" -> player.performCommand("trigger view");
             case "rank_stats" -> player.performCommand("rank stats");
