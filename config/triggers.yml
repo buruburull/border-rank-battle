@@ -389,7 +389,7 @@ lobby:
   # Placeholders: {rank}, {rp}, {queue_status}, {wins}, {losses}
   actionbar:
     enabled: true
-    format: "§7ランク: {rank} §8| §7RP: {rp} §8| §7{queue_status}"
+    format: "§6ランク: §e{rank} §8| §bRP: §f{rp} §8| {queue_status}"
     update_interval: 40
 
 # ============================================
