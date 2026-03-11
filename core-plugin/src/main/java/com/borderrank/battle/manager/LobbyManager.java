@@ -153,7 +153,7 @@ public class LobbyManager implements Listener {
 
         // Spawn subtitle hologram above NPC head
         if (!subtitle.isEmpty()) {
-            Location subtitleLoc = loc.clone().add(0, 2.6, 0);
+            Location subtitleLoc = loc.clone().add(0, 3.2, 0);
             TextDisplay display = (TextDisplay) world.spawnEntity(subtitleLoc, EntityType.TEXT_DISPLAY);
             display.text(LegacyComponentSerializer.legacySection().deserialize(subtitle));
             display.setBillboard(Display.Billboard.CENTER);
