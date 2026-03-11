@@ -225,17 +225,11 @@ public class LobbyManager implements Listener {
                     else if (i == 2) color = "§7"; // gray
                     else color = "§8"; // dark gray
 
-                    // Calculate overall RP
-                    int totalRP = 0;
-                    int count = 0;
-                    for (WeaponRP wrp : p.getWeaponRPs().values()) {
-                        totalRP += wrp.getRp();
-                        count++;
-                    }
-                    int avgRP = count > 0 ? totalRP / count : 1000;
+                    // Calculate total RP (matches /rank stats display)
+                    int totalRP = p.getTotalRP();
 
                     text.append(color).append("#").append(i + 1).append(" ")
-                        .append(p.getPlayerName()).append(" §7- §f").append(avgRP).append("RP");
+                        .append(p.getPlayerName()).append(" §7- §f").append(totalRP).append("RP");
                     if (i < topPlayers.size() - 1) text.append("\n");
                 }
             }
