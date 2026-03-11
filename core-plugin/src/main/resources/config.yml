@@ -1,0 +1,8 @@
+# BUTAI Rank Battle - Configuration
+
+database:
+  host: localhost
+  port: 3306
+  name: brb
+  username: root
+  password: ""

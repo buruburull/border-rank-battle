@@ -41,13 +41,13 @@
 - [x] PlayerDAO.java
 - [x] FrameSetDAO.java
 
-### 3. オペレーター登録システム
-- [ ] BRBPlayer モデル（UUID, name, rankClass, etherCap, weaponRPs）
-- [ ] WeaponRP モデル（weaponType, rp, wins, losses）
-- [ ] WeaponType enum（STRIKER, GUNNER, MARKSMAN）
-- [ ] RankClass enum（S, A, B, C, UNRANKED）
-- [ ] PlayerConnectionListener（初回参加時の自動DB登録）
-- [ ] RankManager（プレイヤーキャッシュ、ランク判定）
+### 3. オペレーター登録システム（完了）
+- [x] BRBPlayer モデル（UUID, name, rankClass, etherCap, weaponRPs）
+- [x] WeaponRP モデル（weaponType, rp, wins, losses）
+- [x] WeaponType enum（STRIKER, GUNNER, MARKSMAN）
+- [x] RankClass enum（S, A, B, C, UNRANKED）
+- [x] PlayerConnectionListener（初回参加時の自動DB登録）
+- [x] RankManager（プレイヤーキャッシュ、ランク判定）
 
 ### 4. フレームシステム
 - [ ] Frame モデル
