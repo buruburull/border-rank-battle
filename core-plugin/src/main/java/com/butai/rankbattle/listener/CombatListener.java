@@ -17,6 +17,7 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.entity.EntityRegainHealthEvent;
 import org.bukkit.event.entity.EntityShootBowEvent;
+import org.bukkit.event.entity.PlayerDeathEvent;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.persistence.PersistentDataType;
@@ -172,6 +173,39 @@ public class CombatListener implements Listener {
         // Tag the projectile with frame ID for hit processing
         if (event.getProjectile() instanceof Arrow arrow) {
             arrow.setCustomName("brb_" + frame.getId());
+        }
+    }
+
+    /**
+     * Handle player death during matches.
+     * - Prevent item drops
+     * - Notify match of elimination
+     */
+    @EventHandler(priority = EventPriority.HIGH)
+    public void onPlayerDeath(PlayerDeathEvent event) {
+        Player victim = event.getEntity();
+        if (!etherManager.isTracking(victim.getUniqueId())) return;
+
+        // Prevent item drops and XP drops
+        event.getDrops().clear();
+        event.setDroppedExp(0);
+
+        // Notify match of elimination
+        if (queueManager != null) {
+            ArenaInstance match = queueManager.getPlayerMatch(victim.getUniqueId());
+            if (match != null) {
+                // Get killer name for broadcast
+                Player killer = victim.getKiller();
+                String killerName = killer != null ? killer.getName() : "???";
+                String victimName = victim.getName();
+                event.setDeathMessage(null); // Suppress default death message
+
+                // Broadcast kill message to match players
+                match.broadcast("§c§l✖ " + victimName + " §7が §f" + killerName + " §7に倒されました！");
+
+                // Mark as eliminated (triggers win condition check)
+                match.onPlayerEliminated(victim.getUniqueId());
+            }
         }
     }
 

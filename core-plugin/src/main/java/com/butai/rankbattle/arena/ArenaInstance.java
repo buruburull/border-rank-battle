@@ -4,6 +4,7 @@ import com.butai.rankbattle.BRBPlugin;
 import com.butai.rankbattle.manager.EtherManager;
 import com.butai.rankbattle.util.MessageUtil;
 import org.bukkit.Bukkit;
+import org.bukkit.GameMode;
 import org.bukkit.Location;
 import org.bukkit.entity.Player;
 import org.bukkit.scheduler.BukkitRunnable;
@@ -188,7 +189,12 @@ public class ArenaInstance {
 
         // Set E-Shift callback
         etherManager.setEShiftCallback(uuid -> {
-            plugin.getServer().getScheduler().runTask(plugin, () -> onPlayerEliminated(uuid));
+            plugin.getServer().getScheduler().runTask(plugin, () -> {
+                Player ep = Bukkit.getPlayer(uuid);
+                String name = ep != null ? ep.getName() : uuid.toString().substring(0, 8);
+                broadcast("§c§l✖ " + name + " §7がE-Shiftしました！");
+                onPlayerEliminated(uuid);
+            });
         });
 
         broadcast("§a§l▶ 試合開始！");
@@ -234,10 +240,6 @@ public class ArenaInstance {
     public void onPlayerEliminated(UUID uuid) {
         if (state != MatchState.ACTIVE) return;
         if (!eliminated.add(uuid)) return; // Already eliminated
-
-        Player eliminated_player = Bukkit.getPlayer(uuid);
-        String name = eliminated_player != null ? eliminated_player.getName() : uuid.toString();
-        broadcast("§c§l✖ " + name + " §7がE-Shiftしました！");
 
         checkWinCondition();
     }
@@ -497,8 +499,8 @@ public class ArenaInstance {
             if (players.size() >= 2) {
                 Player p1 = Bukkit.getPlayer(players.get(0));
                 Player p2 = Bukkit.getPlayer(players.get(1));
-                if (p1 != null) p1.teleport(spawn1);
-                if (p2 != null) p2.teleport(spawn2);
+                if (p1 != null) { p1.setGameMode(GameMode.SURVIVAL); p1.teleport(spawn1); }
+                if (p2 != null) { p2.setGameMode(GameMode.SURVIVAL); p2.teleport(spawn2); }
             }
         } else {
             // Team: team 0 to spawn1 area, team 1 to spawn2 area
@@ -509,6 +511,7 @@ public class ArenaInstance {
                 for (UUID uuid : team0) {
                     Player p = Bukkit.getPlayer(uuid);
                     if (p != null) {
+                        p.setGameMode(GameMode.SURVIVAL);
                         p.teleport(spawn1.clone().add(offset * 2, 0, 0));
                         offset++;
                     }
@@ -519,6 +522,7 @@ public class ArenaInstance {
                 for (UUID uuid : team1) {
                     Player p = Bukkit.getPlayer(uuid);
                     if (p != null) {
+                        p.setGameMode(GameMode.SURVIVAL);
                         p.teleport(spawn2.clone().add(offset * 2, 0, 0));
                         offset++;
                     }
@@ -530,7 +534,7 @@ public class ArenaInstance {
     /**
      * Send a message to all players in this match.
      */
-    private void broadcast(String message) {
+    public void broadcast(String message) {
         for (UUID uuid : players) {
             Player p = Bukkit.getPlayer(uuid);
             if (p != null && p.isOnline()) {

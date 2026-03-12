@@ -68,7 +68,9 @@ public class BRBPlugin extends JavaPlugin {
         rankManager = new RankManager(playerDAO, log);
 
         // Load frame registry (save default frames.yml to plugin data folder)
-        saveResource("frames.yml", false);
+        if (!new java.io.File(getDataFolder(), "frames.yml").exists()) {
+            saveResource("frames.yml", false);
+        }
         frameRegistry = new FrameRegistry(log);
         frameRegistry.loadFromFile(new java.io.File(getDataFolder(), "frames.yml"));
 
