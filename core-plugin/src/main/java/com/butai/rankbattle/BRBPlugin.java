@@ -5,9 +5,12 @@ import com.butai.rankbattle.database.FrameSetDAO;
 import com.butai.rankbattle.database.PlayerDAO;
 import com.butai.rankbattle.command.FrameCommand;
 import com.butai.rankbattle.listener.PlayerConnectionListener;
+import com.butai.rankbattle.manager.EtherManager;
 import com.butai.rankbattle.manager.FrameRegistry;
 import com.butai.rankbattle.manager.FrameSetManager;
 import com.butai.rankbattle.manager.RankManager;
+import org.bukkit.Location;
+import org.bukkit.World;
 import org.bukkit.command.PluginCommand;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.plugin.java.JavaPlugin;
@@ -25,6 +28,7 @@ public class BRBPlugin extends JavaPlugin {
     private RankManager rankManager;
     private FrameRegistry frameRegistry;
     private FrameSetManager frameSetManager;
+    private EtherManager etherManager;
 
     public static BRBPlugin getInstance() {
         return instance;
@@ -67,7 +71,20 @@ public class BRBPlugin extends JavaPlugin {
         // Initialize FrameSetManager
         frameSetManager = new FrameSetManager(frameRegistry, frameSetDAO, log);
 
-        // TODO: EtherManager, QueueManager, etc.
+        // Initialize EtherManager
+        etherManager = new EtherManager(this, log);
+        // Set lobby location from config or world spawn
+        String lobbyWorld = config.getString("lobby.world", "world");
+        World world = getServer().getWorld(lobbyWorld);
+        if (world != null) {
+            double lx = config.getDouble("lobby.x", world.getSpawnLocation().getX());
+            double ly = config.getDouble("lobby.y", world.getSpawnLocation().getY());
+            double lz = config.getDouble("lobby.z", world.getSpawnLocation().getZ());
+            etherManager.setLobbyLocation(new Location(world, lx, ly, lz));
+        }
+        // Tick loop will be started per-match (not globally at startup)
+
+        // TODO: QueueManager, etc.
 
         // Register commands
         FrameCommand frameCommand = new FrameCommand(frameRegistry, frameSetManager);
@@ -87,6 +104,11 @@ public class BRBPlugin extends JavaPlugin {
     @Override
     public void onDisable() {
         log.info("BRB プラグインを停止しています...");
+
+        // Stop ether tick loop
+        if (etherManager != null) {
+            etherManager.stopTickLoop();
+        }
 
         // TODO: 進行中マッチの終了処理
 
@@ -120,5 +142,9 @@ public class BRBPlugin extends JavaPlugin {
 
     public FrameSetManager getFrameSetManager() {
         return frameSetManager;
+    }
+
+    public EtherManager getEtherManager() {
+        return etherManager;
     }
 }

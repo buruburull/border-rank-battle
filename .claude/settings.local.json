@@ -2,7 +2,8 @@
   "permissions": {
     "allow": [
       "Bash(git add -u)",
-      "Bash(git push origin main)"
+      "Bash(git push origin main)",
+      "Bash(git commit -m \"$\\(cat <<'EOF'\nfeat: /frame set でホットバーにアイテムを配布する機能を追加\n\nCo-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>\nEOF\n\\)\")"
     ]
   }
 }

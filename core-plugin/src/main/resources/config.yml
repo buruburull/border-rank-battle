@@ -6,3 +6,10 @@ database:
   name: brb
   username: root
   password: ""
+
+# Lobby settings (E-Shift teleport destination)
+lobby:
+  world: world
+  x: 0.0
+  y: 64.0
+  z: 0.0
