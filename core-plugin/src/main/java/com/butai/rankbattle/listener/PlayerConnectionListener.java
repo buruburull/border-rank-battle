@@ -43,6 +43,15 @@ public class PlayerConnectionListener implements Listener {
                     MessageUtil.send(player, "§6BUTAI Rank Battle §7へようこそ！");
                     MessageUtil.sendInfo(player, "ランク: " + brbPlayer.getRankClass().getColoredName()
                             + " §8| §7総合RP: §f" + brbPlayer.getTotalRP());
+
+                    // Show disconnect penalty warning if applicable
+                    if (plugin.getQueueManager() != null) {
+                        String penalty = plugin.getQueueManager().getDisconnectTracker()
+                                .getPenaltyMessage(player.getUniqueId());
+                        if (penalty != null) {
+                            MessageUtil.sendError(player, penalty);
+                        }
+                    }
                 }
             });
         });
@@ -52,9 +61,12 @@ public class PlayerConnectionListener implements Listener {
     public void onPlayerQuit(PlayerQuitEvent event) {
         Player player = event.getPlayer();
 
-        // Handle match disconnect (queue removal + E-Shift in match)
+        // Handle match disconnect (queue removal + E-Shift in match + penalty tracking)
         if (plugin.getQueueManager() != null) {
-            plugin.getQueueManager().handleDisconnect(player.getUniqueId());
+            String penaltyMsg = plugin.getQueueManager().handleDisconnect(player.getUniqueId());
+            if (penaltyMsg != null) {
+                plugin.getLogger().info("Disconnect penalty for " + player.getName() + ": " + penaltyMsg);
+            }
         }
 
         // Save frameset async, then unload

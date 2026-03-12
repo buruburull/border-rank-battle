@@ -41,10 +41,18 @@ public class QueueManager {
     // Queue checker task
     private BukkitTask queueCheckerTask;
 
+    // Disconnect tracking and penalties
+    private final DisconnectTracker disconnectTracker;
+
     public QueueManager(BRBPlugin plugin, FrameSetManager frameSetManager, Logger logger) {
         this.plugin = plugin;
         this.frameSetManager = frameSetManager;
         this.logger = logger;
+        this.disconnectTracker = new DisconnectTracker(logger);
+    }
+
+    public DisconnectTracker getDisconnectTracker() {
+        return disconnectTracker;
     }
 
     /**
@@ -83,6 +91,12 @@ public class QueueManager {
             return "現在試合中のためキューに参加できません。";
         }
 
+        // Check disconnect penalty
+        String penalty = disconnectTracker.getPenaltyMessage(uuid);
+        if (penalty != null) {
+            return penalty;
+        }
+
         // Validate frameset
         String validation = frameSetManager.validateForQueue(uuid);
         if (validation != null) {
@@ -109,6 +123,16 @@ public class QueueManager {
         }
         if (team.getMemberCount() < 2) {
             return "チームメンバーが2人以上必要です。";
+        }
+
+        // Check disconnect penalty for all members
+        for (UUID member : team.getMembers()) {
+            String penalty = disconnectTracker.getPenaltyMessage(member);
+            if (penalty != null) {
+                Player p = Bukkit.getPlayer(member);
+                String name = p != null ? p.getName() : member.toString().substring(0, 8);
+                return name + ": " + penalty;
+            }
         }
 
         // Check all members
@@ -320,8 +344,12 @@ public class QueueManager {
 
     /**
      * Handle player disconnect during match.
+     * - Removes from queues
+     * - Eliminates from active match (E-Shift)
+     * - Tracks disconnect for penalty (ranked matches only, not practice)
+     * Returns the penalty message if applicable, or null.
      */
-    public void handleDisconnect(UUID uuid) {
+    public String handleDisconnect(UUID uuid) {
         // Remove from queues
         leaveQueue(uuid);
 
@@ -329,8 +357,20 @@ public class QueueManager {
         ArenaInstance match = getPlayerMatch(uuid);
         if (match != null && (match.getState() == ArenaInstance.MatchState.ACTIVE
                 || match.getState() == ArenaInstance.MatchState.SUDDEN_DEATH)) {
+
+            // Broadcast disconnect message
+            Player p = Bukkit.getPlayer(uuid);
+            String name = p != null ? p.getName() : uuid.toString().substring(0, 8);
+            match.broadcast("§c§l✖ " + name + " §7が切断しました！(E-Shift扱い)");
+
             match.onPlayerEliminated(uuid);
+
+            // Track disconnect penalty (practice matches excluded)
+            if (match.getMatchType() != ArenaInstance.MatchType.PRACTICE) {
+                return disconnectTracker.recordDisconnect(uuid);
+            }
         }
+        return null;
     }
 
     /**
