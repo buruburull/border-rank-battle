@@ -141,6 +141,21 @@ public class RankManager {
     }
 
     /**
+     * Admin: Set weapon RP to a specific value and recalculate rank.
+     */
+    public void setWeaponRP(UUID uuid, WeaponType weaponType, int rp) {
+        BRBPlayer player = playerCache.get(uuid);
+        if (player != null) {
+            WeaponRP wrp = player.getWeaponRP(weaponType);
+            wrp.setRp(rp);
+            if (player.recalculateRank()) {
+                playerDAO.updateRankClass(uuid, player.getRankClass().name());
+            }
+        }
+        playerDAO.setWeaponRP(uuid, weaponType.name(), rp);
+    }
+
+    /**
      * Get top players (delegates to DAO).
      */
     public List<Map<String, Object>> getTopPlayers(int limit) {

@@ -4,6 +4,7 @@ import com.butai.rankbattle.database.DatabaseManager;
 import com.butai.rankbattle.database.FrameSetDAO;
 import com.butai.rankbattle.database.PlayerDAO;
 import com.butai.rankbattle.database.TeamDAO;
+import com.butai.rankbattle.command.AdminCommand;
 import com.butai.rankbattle.command.FrameCommand;
 import com.butai.rankbattle.command.RankCommand;
 import com.butai.rankbattle.command.TeamCommand;
@@ -119,6 +120,13 @@ public class BRBPlugin extends JavaPlugin {
         if (teamCmdObj != null) {
             teamCmdObj.setExecutor(teamCommand);
             teamCmdObj.setTabCompleter(teamCommand);
+        }
+
+        AdminCommand adminCommand = new AdminCommand(rankManager, queueManager, frameRegistry);
+        PluginCommand adminCmdObj = getCommand("bradmin");
+        if (adminCmdObj != null) {
+            adminCmdObj.setExecutor(adminCommand);
+            adminCmdObj.setTabCompleter(adminCommand);
         }
 
         // Register listeners (after commands, so frameCommand is available)

@@ -197,13 +197,14 @@
 - [ ] シーズン終了: スナップショット保存 → 全RP1000リセット
 - [ ] season_snapshotsテーブル永続化
 
-### 18. 管理者コマンド
-- [ ] /bradmin frame reload（frames.yml再読み込み）
-- [ ] /bradmin forcestart（キュー内で強制開始）
-- [ ] /bradmin rp set <player> <weapon> <value>
+### 18. 管理者コマンド（部分完了）
+- [x] /bradmin frame reload（frames.yml再読み込み）
+- [x] /bradmin forcestart（スタブ実装）
+- [x] /bradmin rp set <player> <weapon> <value>
+- [x] /bradmin rp info <player>
 - [ ] /bradmin map list
 - [ ] /bradmin map info <name>
-- [ ] 権限: brb.admin
+- [x] 権限: brb.admin
 
 ### 19. UI/HUD
 - [ ] 試合中スコアボード（サイドバー: マップ名、残り時間、エーテル、残り人数、キル数）
