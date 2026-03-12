@@ -737,6 +737,8 @@ public class ArenaInstance {
                     p.teleport(p.getWorld().getSpawnLocation());
                 }
                 p.setGameMode(GameMode.ADVENTURE);
+                p.setHealth(p.getMaxHealth());
+                p.setFoodLevel(20);
                 // Restore hotbar items
                 if (fc != null) fc.refreshHotbar(p);
             }
@@ -769,8 +771,8 @@ public class ArenaInstance {
             if (players.size() >= 2) {
                 Player p1 = Bukkit.getPlayer(players.get(0));
                 Player p2 = Bukkit.getPlayer(players.get(1));
-                if (p1 != null) { p1.setGameMode(GameMode.SURVIVAL); p1.teleport(spawn1); if (fc != null) fc.refreshHotbar(p1); }
-                if (p2 != null) { p2.setGameMode(GameMode.SURVIVAL); p2.teleport(spawn2); if (fc != null) fc.refreshHotbar(p2); }
+                if (p1 != null) { p1.setGameMode(GameMode.SURVIVAL); p1.teleport(spawn1); p1.setHealth(p1.getMaxHealth()); p1.setFoodLevel(20); if (fc != null) fc.refreshHotbar(p1); }
+                if (p2 != null) { p2.setGameMode(GameMode.SURVIVAL); p2.teleport(spawn2); p2.setHealth(p2.getMaxHealth()); p2.setFoodLevel(20); if (fc != null) fc.refreshHotbar(p2); }
             }
         } else {
             Set<UUID> team0 = teamData.get(0);
@@ -782,6 +784,8 @@ public class ArenaInstance {
                     if (p != null) {
                         p.setGameMode(GameMode.SURVIVAL);
                         p.teleport(spawn1.clone().add(offset * 2, 0, 0));
+                        p.setHealth(p.getMaxHealth());
+                        p.setFoodLevel(20);
                         if (fc != null) fc.refreshHotbar(p);
                         offset++;
                     }
@@ -794,6 +798,8 @@ public class ArenaInstance {
                     if (p != null) {
                         p.setGameMode(GameMode.SURVIVAL);
                         p.teleport(spawn2.clone().add(offset * 2, 0, 0));
+                        p.setHealth(p.getMaxHealth());
+                        p.setFoodLevel(20);
                         if (fc != null) fc.refreshHotbar(p);
                         offset++;
                     }

@@ -2,7 +2,7 @@ package com.butai.rankbattle.model;
 
 public enum FrameCategory {
     STRIKER("ストライカー", "§c"),
-    GUNNER("ガナー", "§e"),
+    GUNNER("ガンナー", "§e"),
     MARKSMAN("マークスマン", "§b"),
     SUPPORT("サポート", "§a");
 

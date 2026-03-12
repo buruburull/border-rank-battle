@@ -21,7 +21,7 @@ public enum WeaponType {
     public String getDisplayName() {
         return switch (this) {
             case STRIKER -> "ストライカー";
-            case GUNNER -> "ガナー";
+            case GUNNER -> "ガンナー";
             case MARKSMAN -> "マークスマン";
         };
     }
