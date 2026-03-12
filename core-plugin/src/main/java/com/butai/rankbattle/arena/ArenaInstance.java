@@ -7,6 +7,9 @@ import com.butai.rankbattle.util.MessageUtil;
 import org.bukkit.Bukkit;
 import org.bukkit.GameMode;
 import org.bukkit.Location;
+import org.bukkit.boss.BarColor;
+import org.bukkit.boss.BarStyle;
+import org.bukkit.boss.BossBar;
 import org.bukkit.entity.Player;
 import org.bukkit.scheduler.BukkitRunnable;
 import org.bukkit.scheduler.BukkitTask;
@@ -16,17 +19,20 @@ import java.util.logging.Logger;
 
 /**
  * Represents a single match instance.
- * Manages match lifecycle: WAITING → COUNTDOWN → ACTIVE → ENDING → FINISHED
+ * Manages match lifecycle: WAITING → COUNTDOWN → ACTIVE → SUDDEN_DEATH → ENDING → FINISHED
  */
 public class ArenaInstance {
 
     public enum MatchState {
-        WAITING, COUNTDOWN, ACTIVE, ENDING, FINISHED
+        WAITING, COUNTDOWN, ACTIVE, SUDDEN_DEATH, ENDING, FINISHED
     }
 
     public enum MatchType {
         SOLO_RANKED, TEAM_RANKED, PRACTICE
     }
+
+    private static final int SUDDEN_DEATH_TIME = 60; // seconds
+    private static final double SUDDEN_DEATH_LEAK_MULTIPLIER = 1.5; // 3x normal (0.5 * 3)
 
     private static int nextMatchId = 1;
 
@@ -55,6 +61,10 @@ public class ArenaInstance {
     // Tasks
     private BukkitTask countdownTask;
     private BukkitTask matchTimerTask;
+    private BukkitTask suddenDeathTask;
+
+    // Boss bar for match timer
+    private BossBar bossBar;
 
     // Spawn locations
     private Location spawn1;
@@ -151,6 +161,14 @@ public class ArenaInstance {
             etherManager.initPlayer(uuid);
         }
 
+        // Create boss bar
+        bossBar = Bukkit.createBossBar("§e§lマッチ開始まで §f" + countdownRemaining + "秒",
+                BarColor.YELLOW, BarStyle.SOLID);
+        for (UUID uuid : players) {
+            Player p = Bukkit.getPlayer(uuid);
+            if (p != null) bossBar.addPlayer(p);
+        }
+
         broadcast("§e§lマッチが見つかりました！ §710秒後に開始します...");
 
         countdownTask = new BukkitRunnable() {
@@ -164,7 +182,6 @@ public class ArenaInstance {
 
                 if (countdownRemaining <= 5) {
                     broadcast("§e開始まで §f§l" + countdownRemaining + " §e秒...");
-                    // Play sound for last 5 seconds
                     for (UUID uuid : players) {
                         Player p = Bukkit.getPlayer(uuid);
                         if (p != null) {
@@ -173,6 +190,8 @@ public class ArenaInstance {
                     }
                 }
 
+                bossBar.setTitle("§e§lマッチ開始まで §f" + countdownRemaining + "秒");
+                bossBar.setProgress(Math.max(0, (double) countdownRemaining / 10.0));
                 countdownRemaining--;
             }
         }.runTaskTimer(plugin, 20L, 20L);
@@ -198,6 +217,11 @@ public class ArenaInstance {
             });
         });
 
+        // Update boss bar for match timer
+        bossBar.setColor(BarColor.GREEN);
+        bossBar.setStyle(BarStyle.SEGMENTED_10);
+        updateBossBar();
+
         broadcast("§a§l▶ 試合開始！");
         for (UUID uuid : players) {
             Player p = Bukkit.getPlayer(uuid);
@@ -217,6 +241,7 @@ public class ArenaInstance {
                 }
 
                 timeRemaining--;
+                updateBossBar();
 
                 // Time warnings
                 if (timeRemaining == 60) {
@@ -239,7 +264,7 @@ public class ArenaInstance {
      * Called when a player is eliminated (E-Shift or death).
      */
     public void onPlayerEliminated(UUID uuid) {
-        if (state != MatchState.ACTIVE) return;
+        if (state != MatchState.ACTIVE && state != MatchState.SUDDEN_DEATH) return;
         if (!eliminated.add(uuid)) return; // Already eliminated
 
         checkWinCondition();
@@ -276,7 +301,6 @@ public class ArenaInstance {
                 int teamIndex = entry.getKey();
                 Set<UUID> team = entry.getValue();
                 if (eliminated.containsAll(team)) {
-                    // This team is fully eliminated, other team wins
                     int winningTeamIndex = teamIndex == 0 ? 1 : 0;
                     endTeamMatch(winningTeamIndex);
                     return;
@@ -286,53 +310,169 @@ public class ArenaInstance {
     }
 
     /**
-     * Called when time runs out.
+     * Called when time runs out during ACTIVE phase.
      */
     private void onTimeUp() {
         if (state != MatchState.ACTIVE) return;
         broadcast("§e§l⏰ 制限時間終了！ジャッジ判定中...");
 
-        // Calculate judge scores
         Map<UUID, Double> scores = calculateJudgeScores();
+        broadcastJudgeScores(scores);
 
         if (teamData.isEmpty()) {
-            // Solo judge
             UUID p1 = players.get(0);
             UUID p2 = players.get(1);
             double s1 = scores.getOrDefault(p1, 0.0);
             double s2 = scores.getOrDefault(p2, 0.0);
 
-            // Show scores
-            broadcastJudgeScores(scores);
-
-            if (Math.abs(s1 - s2) / Math.max(s1 + s2, 1.0) <= 0.01) {
-                // Draw (within 1%)
-                broadcast("§e§l引き分け！ §7両者に参加ボーナスのみ付与されます。");
-                endMatch(null, null); // Draw
+            if (isWithinDrawThreshold(s1, s2)) {
+                // Enter sudden death
+                startSuddenDeath();
             } else if (s1 > s2) {
+                broadcast("§6§lジャッジ判定: §f勝者決定！");
                 endMatch(p1, p2);
             } else {
+                broadcast("§6§lジャッジ判定: §f勝者決定！");
                 endMatch(p2, p1);
             }
         } else {
-            // Team judge: sum scores by team
-            double[] teamScores = new double[2];
-            for (Map.Entry<Integer, Set<UUID>> entry : teamData.entrySet()) {
-                for (UUID uuid : entry.getValue()) {
-                    if (!eliminated.contains(uuid)) {
-                        teamScores[entry.getKey()] += scores.getOrDefault(uuid, 0.0);
-                    }
-                }
-            }
-
-            broadcastJudgeScores(scores);
-
-            if (Math.abs(teamScores[0] - teamScores[1]) / Math.max(teamScores[0] + teamScores[1], 1.0) <= 0.01) {
-                broadcast("§e§l引き分け！");
-                endMatch(null, null);
+            double[] teamScores = calculateTeamScores(scores);
+            if (isWithinDrawThreshold(teamScores[0], teamScores[1])) {
+                startSuddenDeath();
             } else {
+                broadcast("§6§lジャッジ判定: §f勝者決定！");
                 endTeamMatch(teamScores[0] > teamScores[1] ? 0 : 1);
             }
+        }
+    }
+
+    /**
+     * Check if two scores are within the 1% draw threshold.
+     */
+    private boolean isWithinDrawThreshold(double s1, double s2) {
+        return Math.abs(s1 - s2) / Math.max(s1 + s2, 1.0) <= 0.01;
+    }
+
+    /**
+     * Calculate team scores from individual judge scores.
+     */
+    private double[] calculateTeamScores(Map<UUID, Double> scores) {
+        double[] teamScores = new double[2];
+        for (Map.Entry<Integer, Set<UUID>> entry : teamData.entrySet()) {
+            for (UUID uuid : entry.getValue()) {
+                if (!eliminated.contains(uuid)) {
+                    teamScores[entry.getKey()] += scores.getOrDefault(uuid, 0.0);
+                }
+            }
+        }
+        return teamScores;
+    }
+
+    /**
+     * Start sudden death phase.
+     * - Ether leak 3x acceleration
+     * - 60 second time limit
+     * - Boss bar turns red
+     * - Warning messages and sound effects
+     */
+    private void startSuddenDeath() {
+        state = MatchState.SUDDEN_DEATH;
+        timeRemaining = SUDDEN_DEATH_TIME;
+
+        // Accelerate ether leak (3x: 0.5 → 1.5)
+        etherManager.setLeakCoefficient(SUDDEN_DEATH_LEAK_MULTIPLIER);
+
+        // Update boss bar to red
+        if (bossBar != null) {
+            bossBar.setColor(BarColor.RED);
+            bossBar.setStyle(BarStyle.SOLID);
+            bossBar.setTitle("§c§l⚠ サドンデス §f" + timeRemaining + "秒");
+            bossBar.setProgress(1.0);
+        }
+
+        // Broadcast warning
+        broadcast("§c§l⚠ サドンデス突入！エーテルリーク加速！");
+        broadcast("§7追加60秒以内に決着しない場合は引き分けとなります。");
+
+        // Sound effect for all players
+        for (UUID uuid : players) {
+            Player p = Bukkit.getPlayer(uuid);
+            if (p != null && p.isOnline()) {
+                p.sendTitle("§c§l⚠ SUDDEN DEATH ⚠", "§cエーテルリーク3倍加速！", 5, 50, 20);
+                p.playSound(p.getLocation(), org.bukkit.Sound.ENTITY_WITHER_SPAWN, 0.8f, 1.0f);
+            }
+        }
+
+        // Start sudden death timer
+        suddenDeathTask = new BukkitRunnable() {
+            @Override
+            public void run() {
+                if (state != MatchState.SUDDEN_DEATH) {
+                    cancel();
+                    return;
+                }
+
+                timeRemaining--;
+
+                // Update boss bar
+                if (bossBar != null) {
+                    bossBar.setTitle("§c§l⚠ サドンデス §f" + timeRemaining + "秒");
+                    bossBar.setProgress(Math.max(0, (double) timeRemaining / SUDDEN_DEATH_TIME));
+                }
+
+                // Time warnings
+                if (timeRemaining == 30) {
+                    broadcast("§c⚠ サドンデス残り §f30秒！");
+                } else if (timeRemaining <= 10 && timeRemaining > 0) {
+                    broadcast("§c§l" + timeRemaining + "...");
+                    for (UUID uuid : players) {
+                        Player p = Bukkit.getPlayer(uuid);
+                        if (p != null && !eliminated.contains(uuid)) {
+                            p.playSound(p.getLocation(), org.bukkit.Sound.BLOCK_NOTE_BLOCK_PLING, 1.0f, 0.5f);
+                        }
+                    }
+                }
+
+                if (timeRemaining <= 0) {
+                    cancel();
+                    onSuddenDeathTimeUp();
+                }
+            }
+        }.runTaskTimer(plugin, 20L, 20L);
+
+        logger.info("Match #" + matchId + " entered sudden death.");
+    }
+
+    /**
+     * Called when sudden death time runs out. Results in a draw.
+     */
+    private void onSuddenDeathTimeUp() {
+        if (state != MatchState.SUDDEN_DEATH) return;
+
+        broadcast("§e§l⏰ サドンデス終了！引き分け！");
+        broadcast("§7両者に参加ボーナスのみ付与されます。");
+
+        // Reset leak coefficient
+        etherManager.resetLeakCoefficient();
+
+        endMatch(null, null); // Draw
+    }
+
+    /**
+     * Update boss bar to show remaining time.
+     */
+    private void updateBossBar() {
+        if (bossBar == null) return;
+        int minutes = timeRemaining / 60;
+        int seconds = timeRemaining % 60;
+        bossBar.setTitle("§e§l残り時間 §f" + String.format("%d:%02d", minutes, seconds));
+        bossBar.setProgress(Math.max(0, Math.min(1, (double) timeRemaining / timeLimit)));
+
+        // Change color based on time
+        if (timeRemaining <= 30) {
+            bossBar.setColor(BarColor.RED);
+        } else if (timeRemaining <= 60) {
+            bossBar.setColor(BarColor.YELLOW);
         }
     }
 
@@ -385,6 +525,7 @@ public class ArenaInstance {
         state = MatchState.ENDING;
 
         cancelTasks();
+        etherManager.resetLeakCoefficient();
 
         if (winner != null && loser != null) {
             Player winnerPlayer = Bukkit.getPlayer(winner);
@@ -406,7 +547,15 @@ public class ArenaInstance {
         } else {
             broadcast("§6§l==================");
             broadcast("§e§l  引き分け");
+            broadcast("§7  両者に参加ボーナス(+5 RP)のみ");
             broadcast("§6§l==================");
+
+            for (UUID uuid : players) {
+                Player p = Bukkit.getPlayer(uuid);
+                if (p != null) {
+                    p.sendTitle("§e§l引き分け", "§7参加ボーナスのみ付与", 5, 60, 20);
+                }
+            }
         }
 
         // Return to lobby after 5 seconds
@@ -415,7 +564,7 @@ public class ArenaInstance {
             public void run() {
                 finishMatch();
             }
-        }.runTaskLater(plugin, 100L); // 5 seconds
+        }.runTaskLater(plugin, 100L);
     }
 
     /**
@@ -426,6 +575,7 @@ public class ArenaInstance {
         state = MatchState.ENDING;
 
         cancelTasks();
+        etherManager.resetLeakCoefficient();
 
         broadcast("§6§l==================");
         broadcast("§a§l  ✦ チーム" + (winningTeamIndex + 1) + " の勝利！");
@@ -462,6 +612,12 @@ public class ArenaInstance {
     private void finishMatch() {
         state = MatchState.FINISHED;
         FrameCommand fc = plugin.getFrameCommand();
+
+        // Remove boss bar
+        if (bossBar != null) {
+            bossBar.removeAll();
+            bossBar = null;
+        }
 
         for (UUID uuid : players) {
             etherManager.removePlayer(uuid);
@@ -501,7 +657,6 @@ public class ArenaInstance {
         FrameCommand fc = plugin.getFrameCommand();
 
         if (teamData.isEmpty()) {
-            // Solo: player 0 to spawn1, player 1 to spawn2
             if (players.size() >= 2) {
                 Player p1 = Bukkit.getPlayer(players.get(0));
                 Player p2 = Bukkit.getPlayer(players.get(1));
@@ -509,7 +664,6 @@ public class ArenaInstance {
                 if (p2 != null) { p2.setGameMode(GameMode.SURVIVAL); p2.teleport(spawn2); if (fc != null) fc.refreshHotbar(p2); }
             }
         } else {
-            // Team: team 0 to spawn1 area, team 1 to spawn2 area
             Set<UUID> team0 = teamData.get(0);
             Set<UUID> team1 = teamData.get(1);
             if (team0 != null) {
@@ -562,6 +716,10 @@ public class ArenaInstance {
         if (matchTimerTask != null) {
             matchTimerTask.cancel();
             matchTimerTask = null;
+        }
+        if (suddenDeathTask != null) {
+            suddenDeathTask.cancel();
+            suddenDeathTask = null;
         }
     }
 

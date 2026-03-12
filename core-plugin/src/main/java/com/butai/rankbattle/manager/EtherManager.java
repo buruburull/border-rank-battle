@@ -26,9 +26,12 @@ import java.util.logging.Logger;
 public class EtherManager {
 
     private static final int MAX_ETHER = 1000;
-    private static final double LEAK_COEFFICIENT = 0.5;
+    private static final double DEFAULT_LEAK_COEFFICIENT = 0.5;
     private static final int WARNING_YELLOW = 200;
     private static final int WARNING_RED = 100;
+
+    // Current leak coefficient (can be changed for sudden death)
+    private double leakCoefficient = DEFAULT_LEAK_COEFFICIENT;
 
     private final JavaPlugin plugin;
     private final Logger logger;
@@ -229,7 +232,7 @@ public class EtherManager {
             double maxHealth = player.getMaxHealth();
             double currentHealth = player.getHealth();
             if (currentHealth < maxHealth) {
-                drain += (int) Math.ceil((maxHealth - currentHealth) * LEAK_COEFFICIENT);
+                drain += (int) Math.ceil((maxHealth - currentHealth) * leakCoefficient);
             }
 
             // Sustain costs
@@ -309,6 +312,20 @@ public class EtherManager {
     private void updateXpBar(Player player, int ether) {
         player.setLevel(ether);
         player.setExp(Math.max(0f, Math.min(1f, (float) ether / MAX_ETHER)));
+    }
+
+    /**
+     * Set the leak coefficient (default 0.5, sudden death uses 1.5).
+     */
+    public void setLeakCoefficient(double coefficient) {
+        this.leakCoefficient = coefficient;
+    }
+
+    /**
+     * Reset leak coefficient to default.
+     */
+    public void resetLeakCoefficient() {
+        this.leakCoefficient = DEFAULT_LEAK_COEFFICIENT;
     }
 
     /**
