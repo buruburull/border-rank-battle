@@ -1,15 +1,21 @@
 package com.butai.rankbattle.command;
 
+import com.butai.rankbattle.BRBPlugin;
 import com.butai.rankbattle.manager.FrameRegistry;
 import com.butai.rankbattle.manager.FrameSetManager;
 import com.butai.rankbattle.model.FrameCategory;
 import com.butai.rankbattle.model.FrameData;
 import com.butai.rankbattle.util.MessageUtil;
+import org.bukkit.Material;
+import org.bukkit.NamespacedKey;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
 import org.bukkit.command.TabCompleter;
 import org.bukkit.entity.Player;
+import org.bukkit.inventory.ItemStack;
+import org.bukkit.inventory.meta.ItemMeta;
+import org.bukkit.persistence.PersistentDataType;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -17,12 +23,88 @@ import java.util.stream.Collectors;
 
 public class FrameCommand implements CommandExecutor, TabCompleter {
 
+    private static final NamespacedKey FRAME_KEY = new NamespacedKey(BRBPlugin.getInstance(), "frame_id");
+
     private final FrameRegistry frameRegistry;
     private final FrameSetManager frameSetManager;
 
     public FrameCommand(FrameRegistry frameRegistry, FrameSetManager frameSetManager) {
         this.frameRegistry = frameRegistry;
         this.frameSetManager = frameSetManager;
+    }
+
+    /**
+     * Create an ItemStack for a frame with custom name, lore, and PDC tag.
+     */
+    private ItemStack createFrameItem(FrameData frameData, int slot) {
+        Material material;
+        try {
+            material = Material.valueOf(frameData.getMcItem());
+        } catch (IllegalArgumentException e) {
+            material = Material.IRON_INGOT;
+        }
+
+        ItemStack item = new ItemStack(material);
+        ItemMeta meta = item.getItemMeta();
+        if (meta != null) {
+            String slotLabel = slot <= 4 ? "メイン" + slot : "サブ" + (slot - 4);
+            meta.setDisplayName(frameData.getCategory().getColor() + "§l" + frameData.getName()
+                    + " §8[" + slotLabel + "]");
+
+            List<String> lore = new ArrayList<>();
+            lore.add("§7" + frameData.getDescription());
+            lore.add("");
+            lore.add("§7カテゴリ: " + frameData.getCategory().getColoredName());
+            if (frameData.getDamage() > 0) {
+                lore.add("§7ダメージ: §f" + frameData.getDamage());
+            }
+            if (frameData.getDamageMultiplier() != 1.0) {
+                lore.add("§7倍率: §f" + frameData.getDamageMultiplier() + "x");
+            }
+            if (frameData.getEtherUse() > 0) {
+                lore.add("§9エーテル消費: §f" + frameData.getEtherUse() + "/回");
+            }
+            if (frameData.getEtherSustain() > 0) {
+                lore.add("§9エーテル持続: §f" + frameData.getEtherSustain() + "/秒");
+            }
+            if (frameData.getCooldown() > 0) {
+                lore.add("§7クールタイム: §f" + frameData.getCooldown() + "秒");
+            }
+            lore.add("");
+            lore.add("§8§oBRB Frame");
+            meta.setLore(lore);
+
+            meta.getPersistentDataContainer().set(FRAME_KEY, PersistentDataType.STRING, frameData.getId());
+            item.setItemMeta(meta);
+        }
+        return item;
+    }
+
+    /**
+     * Place a frame item into the player's hotbar at the corresponding slot.
+     * Frame slot 1-8 maps to hotbar slot 0-7.
+     */
+    private void giveFrameItem(Player player, FrameData frameData, int slot) {
+        ItemStack item = createFrameItem(frameData, slot);
+        player.getInventory().setItem(slot - 1, item);
+    }
+
+    /**
+     * Refresh all hotbar slots based on the current frameset.
+     */
+    public void refreshHotbar(Player player) {
+        String[] slots = frameSetManager.getFrameSet(player.getUniqueId());
+        for (int i = 0; i < 8; i++) {
+            if (slots[i] != null) {
+                FrameData data = frameRegistry.getFrame(slots[i]);
+                if (data != null) {
+                    giveFrameItem(player, data, i + 1);
+                    continue;
+                }
+            }
+            // Clear slot if empty or invalid
+            player.getInventory().setItem(i, null);
+        }
     }
 
     @Override
@@ -124,6 +206,8 @@ public class FrameCommand implements CommandExecutor, TabCompleter {
         }
 
         FrameData frameData = frameRegistry.getFrame(frameId);
+        giveFrameItem(player, frameData, slot);
+
         String slotLabel = slot <= 4 ? "メイン" + slot : "サブ" + (slot - 4);
         MessageUtil.sendSuccess(player, "§f" + slotLabel + " §7に "
                 + frameData.getCategory().getColor() + frameData.getName() + " §7を装備しました。");
@@ -195,6 +279,8 @@ public class FrameCommand implements CommandExecutor, TabCompleter {
             return true;
         }
 
+        player.getInventory().setItem(slot - 1, null);
+
         String slotLabel = slot <= 4 ? "メイン" + slot : "サブ" + (slot - 4);
         MessageUtil.sendSuccess(player, "§f" + slotLabel + " §7のフレームを解除しました。");
         return true;
@@ -244,6 +330,7 @@ public class FrameCommand implements CommandExecutor, TabCompleter {
         if (error != null) {
             MessageUtil.sendError(player, error);
         } else {
+            refreshHotbar(player);
             MessageUtil.sendSuccess(player, "プリセット '§f" + name + "§a' を読み込みました。");
         }
         return true;

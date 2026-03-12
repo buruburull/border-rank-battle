@@ -69,9 +69,6 @@ public class BRBPlugin extends JavaPlugin {
 
         // TODO: EtherManager, QueueManager, etc.
 
-        // Register listeners
-        getServer().getPluginManager().registerEvents(new PlayerConnectionListener(this, rankManager, frameSetManager), this);
-
         // Register commands
         FrameCommand frameCommand = new FrameCommand(frameRegistry, frameSetManager);
         PluginCommand frameCmdObj = getCommand("frame");
@@ -79,6 +76,10 @@ public class BRBPlugin extends JavaPlugin {
             frameCmdObj.setExecutor(frameCommand);
             frameCmdObj.setTabCompleter(frameCommand);
         }
+
+        // Register listeners (after commands, so frameCommand is available)
+        getServer().getPluginManager().registerEvents(
+                new PlayerConnectionListener(this, rankManager, frameSetManager, frameCommand), this);
 
         log.info("BRB プラグインが正常に起動しました！");
     }

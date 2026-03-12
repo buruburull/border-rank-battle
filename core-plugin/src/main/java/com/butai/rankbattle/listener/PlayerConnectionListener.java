@@ -1,6 +1,7 @@
 package com.butai.rankbattle.listener;
 
 import com.butai.rankbattle.BRBPlugin;
+import com.butai.rankbattle.command.FrameCommand;
 import com.butai.rankbattle.manager.FrameSetManager;
 import com.butai.rankbattle.manager.RankManager;
 import com.butai.rankbattle.model.BRBPlayer;
@@ -17,11 +18,14 @@ public class PlayerConnectionListener implements Listener {
     private final BRBPlugin plugin;
     private final RankManager rankManager;
     private final FrameSetManager frameSetManager;
+    private final FrameCommand frameCommand;
 
-    public PlayerConnectionListener(BRBPlugin plugin, RankManager rankManager, FrameSetManager frameSetManager) {
+    public PlayerConnectionListener(BRBPlugin plugin, RankManager rankManager,
+                                    FrameSetManager frameSetManager, FrameCommand frameCommand) {
         this.plugin = plugin;
         this.rankManager = rankManager;
         this.frameSetManager = frameSetManager;
+        this.frameCommand = frameCommand;
     }
 
     @EventHandler(priority = EventPriority.NORMAL)
@@ -35,6 +39,7 @@ public class PlayerConnectionListener implements Listener {
 
             plugin.getServer().getScheduler().runTask(plugin, () -> {
                 if (player.isOnline()) {
+                    frameCommand.refreshHotbar(player);
                     MessageUtil.send(player, "§6BUTAI Rank Battle §7へようこそ！");
                     MessageUtil.sendInfo(player, "ランク: " + brbPlayer.getRankClass().getColoredName()
                             + " §8| §7総合RP: §f" + brbPlayer.getTotalRP());
