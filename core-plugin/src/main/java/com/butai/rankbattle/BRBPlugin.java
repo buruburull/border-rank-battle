@@ -103,7 +103,7 @@ public class BRBPlugin extends JavaPlugin {
             frameCmdObj.setTabCompleter(frameCommand);
         }
 
-        RankCommand rankCommand = new RankCommand(queueManager);
+        RankCommand rankCommand = new RankCommand(queueManager, rankManager);
         PluginCommand rankCmdObj = getCommand("rank");
         if (rankCmdObj != null) {
             rankCmdObj.setExecutor(rankCommand);

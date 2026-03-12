@@ -3,6 +3,9 @@ package com.butai.rankbattle.arena;
 import com.butai.rankbattle.BRBPlugin;
 import com.butai.rankbattle.command.FrameCommand;
 import com.butai.rankbattle.manager.EtherManager;
+import com.butai.rankbattle.manager.RankManager;
+import com.butai.rankbattle.model.BRBPlayer;
+import com.butai.rankbattle.model.WeaponType;
 import com.butai.rankbattle.util.MessageUtil;
 import org.bukkit.Bukkit;
 import org.bukkit.GameMode;
@@ -52,6 +55,8 @@ public class ArenaInstance {
     private final Set<UUID> eliminated = new HashSet<>();
     // Damage tracking for judge scoring
     private final Map<UUID, Double> damageDealt = new HashMap<>();
+    // Weapon type per player (determined at match start from slot 1)
+    private final Map<UUID, WeaponType> playerWeaponTypes = new HashMap<>();
 
     // Match timing
     private int timeLimit; // seconds
@@ -156,8 +161,12 @@ public class ArenaInstance {
         // Teleport players to spawn
         teleportToSpawns();
 
-        // Initialize ether for all players
+        // Record weapon types and initialize ether for all players
         for (UUID uuid : players) {
+            WeaponType wt = plugin.getFrameSetManager().getWeaponType(uuid);
+            if (wt != null) {
+                playerWeaponTypes.put(uuid, wt);
+            }
             etherManager.initPlayer(uuid);
         }
 
@@ -544,6 +553,11 @@ public class ArenaInstance {
             if (loserPlayer != null) {
                 loserPlayer.sendTitle("§c§l敗北", "§7次回頑張りましょう", 5, 60, 20);
             }
+
+            // Apply RP changes (ranked matches only)
+            if (matchType == MatchType.SOLO_RANKED) {
+                applyRPChanges(winner, loser);
+            }
         } else {
             broadcast("§6§l==================");
             broadcast("§e§l  引き分け");
@@ -555,6 +569,11 @@ public class ArenaInstance {
                 if (p != null) {
                     p.sendTitle("§e§l引き分け", "§7参加ボーナスのみ付与", 5, 60, 20);
                 }
+            }
+
+            // Apply participation bonus only (ranked matches)
+            if (matchType == MatchType.SOLO_RANKED) {
+                applyDrawRP();
             }
         }
 
@@ -607,6 +626,95 @@ public class ArenaInstance {
     }
 
     /**
+     * Apply RP changes after a solo match with a winner and loser.
+     */
+    private void applyRPChanges(UUID winner, UUID loser) {
+        RankManager rankManager = plugin.getRankManager();
+
+        WeaponType winnerWeapon = playerWeaponTypes.get(winner);
+        WeaponType loserWeapon = playerWeaponTypes.get(loser);
+        if (winnerWeapon == null || loserWeapon == null) return;
+
+        // Get current RP for calculation
+        BRBPlayer winnerData = rankManager.getPlayer(winner);
+        BRBPlayer loserData = rankManager.getPlayer(loser);
+        if (winnerData == null || loserData == null) return;
+
+        int winnerRP = winnerData.getWeaponRP(winnerWeapon).getRp();
+        int loserRP = loserData.getWeaponRP(loserWeapon).getRp();
+
+        // Calculate RP changes (asymmetric Elo)
+        int[] rpChanges = rankManager.calculateRP(winnerRP, loserRP);
+        int winnerGain = rpChanges[0];
+        int loserLoss = rpChanges[1];
+
+        // Apply to winner
+        rankManager.applyMatchResult(winner, winnerWeapon, winnerGain, true);
+        // Apply to loser (negative RP)
+        rankManager.applyMatchResult(loser, loserWeapon, -loserLoss, false);
+
+        // Broadcast RP changes
+        Player wp = Bukkit.getPlayer(winner);
+        Player lp = Bukkit.getPlayer(loser);
+        String winnerName = wp != null ? wp.getName() : "???";
+        String loserName = lp != null ? lp.getName() : "???";
+
+        broadcast("§6§lRP変動:");
+        broadcast("  §a" + winnerName + " §f+" + winnerGain + " RP"
+                + " §8(" + winnerWeapon.getColor() + winnerWeapon.getDisplayName() + " §f"
+                + (winnerRP + winnerGain) + "§8)");
+        broadcast("  §c" + loserName + " §f-" + loserLoss + " RP"
+                + " §8(" + loserWeapon.getColor() + loserWeapon.getDisplayName() + " §f"
+                + Math.max(0, loserRP - loserLoss) + "§8)");
+
+        // Check for rank changes
+        checkAndAnnounceRankChange(winner, winnerData);
+        checkAndAnnounceRankChange(loser, loserData);
+
+        logger.info("Match #" + matchId + " RP: " + winnerName + " +" + winnerGain
+                + ", " + loserName + " -" + loserLoss);
+    }
+
+    /**
+     * Apply participation bonus only (draw result).
+     */
+    private void applyDrawRP() {
+        RankManager rankManager = plugin.getRankManager();
+        int participationBonus = 5;
+
+        for (UUID uuid : players) {
+            WeaponType weapon = playerWeaponTypes.get(uuid);
+            if (weapon == null) continue;
+            BRBPlayer data = rankManager.getPlayer(uuid);
+            if (data == null) continue;
+
+            int currentRP = data.getWeaponRP(weapon).getRp();
+            rankManager.applyMatchResult(uuid, weapon, participationBonus, false);
+
+            Player p = Bukkit.getPlayer(uuid);
+            String name = p != null ? p.getName() : "???";
+            broadcast("  §e" + name + " §f+" + participationBonus + " RP (参加ボーナス)"
+                    + " §8(" + weapon.getColor() + weapon.getDisplayName() + " §f"
+                    + (currentRP + participationBonus) + "§8)");
+        }
+    }
+
+    /**
+     * Check if a player's rank changed and announce it.
+     */
+    private void checkAndAnnounceRankChange(UUID uuid, BRBPlayer data) {
+        String oldRank = data.getRankClass().getDisplayName();
+        if (data.recalculateRank()) {
+            String newRank = data.getRankClass().getColoredName();
+            Player p = Bukkit.getPlayer(uuid);
+            if (p != null) {
+                broadcast("§d§l★ " + p.getName() + " §7が §f" + oldRank + " §7→ " + newRank + " §7にランクアップ！");
+                p.sendTitle("§d§lランク変動！", newRank, 5, 60, 20);
+            }
+        }
+    }
+
+    /**
      * Final cleanup: teleport players back, remove from ether, notify callback.
      */
     private void finishMatch() {
@@ -628,6 +736,7 @@ public class ArenaInstance {
                 } else {
                     p.teleport(p.getWorld().getSpawnLocation());
                 }
+                p.setGameMode(GameMode.ADVENTURE);
                 // Restore hotbar items
                 if (fc != null) fc.refreshHotbar(p);
             }

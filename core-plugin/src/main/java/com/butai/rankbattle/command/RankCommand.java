@@ -1,7 +1,13 @@
 package com.butai.rankbattle.command;
 
 import com.butai.rankbattle.manager.QueueManager;
+import com.butai.rankbattle.manager.RankManager;
+import com.butai.rankbattle.model.BRBPlayer;
+import com.butai.rankbattle.model.RankClass;
+import com.butai.rankbattle.model.WeaponRP;
+import com.butai.rankbattle.model.WeaponType;
 import com.butai.rankbattle.util.MessageUtil;
+import org.bukkit.Bukkit;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
@@ -10,17 +16,20 @@ import org.bukkit.entity.Player;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
- * Handles /rank commands: solo, cancel, stats, top, practice
+ * Handles /rank commands: solo, cancel, stats, top, practice, status
  */
 public class RankCommand implements CommandExecutor, TabCompleter {
 
     private final QueueManager queueManager;
+    private final RankManager rankManager;
 
-    public RankCommand(QueueManager queueManager) {
+    public RankCommand(QueueManager queueManager, RankManager rankManager) {
         this.queueManager = queueManager;
+        this.rankManager = rankManager;
     }
 
     @Override
@@ -41,6 +50,8 @@ public class RankCommand implements CommandExecutor, TabCompleter {
             case "practice" -> handlePractice(player);
             case "cancel" -> handleCancel(player);
             case "status" -> handleStatus(player);
+            case "stats" -> handleStats(player, args);
+            case "top" -> handleTop(player, args);
             default -> {
                 sendUsage(player);
                 yield true;
@@ -102,19 +113,172 @@ public class RankCommand implements CommandExecutor, TabCompleter {
         return true;
     }
 
+    /**
+     * /rank stats [player] - Show player stats
+     */
+    private boolean handleStats(Player player, String[] args) {
+        BRBPlayer data;
+        String targetName;
+
+        if (args.length >= 2) {
+            // Look up another player
+            Player target = Bukkit.getPlayerExact(args[1]);
+            if (target != null) {
+                data = rankManager.getPlayer(target.getUniqueId());
+                targetName = target.getName();
+            } else {
+                MessageUtil.sendError(player, "プレイヤー '" + args[1] + "' がオンラインではありません。");
+                return true;
+            }
+        } else {
+            data = rankManager.getPlayer(player.getUniqueId());
+            targetName = player.getName();
+        }
+
+        if (data == null) {
+            MessageUtil.sendError(player, "プレイヤーデータが見つかりません。");
+            return true;
+        }
+
+        RankClass rank = data.getRankClass();
+        int totalRP = data.getTotalRP();
+        int totalWins = data.getTotalWins();
+        int totalLosses = data.getTotalLosses();
+        int totalMatches = totalWins + totalLosses;
+        double winRate = totalMatches > 0 ? (double) totalWins / totalMatches * 100.0 : 0.0;
+
+        MessageUtil.send(player, "§6§l============ 戦績 ============");
+        MessageUtil.send(player, "§fプレイヤー: " + rank.getColor() + "[" + rank.getDisplayName() + "] §f" + targetName);
+        MessageUtil.send(player, "§f総合RP: §e" + totalRP + " §8| §f戦績: §a" + totalWins + "勝 §c" + totalLosses + "敗"
+                + " §8(§7勝率: " + String.format("%.1f", winRate) + "%§8)");
+        MessageUtil.send(player, "§6--- 武器タイプ別 ---");
+
+        for (WeaponType type : WeaponType.values()) {
+            WeaponRP wrp = data.getWeaponRP(type);
+            int matches = wrp.getTotalMatches();
+            String wr = matches > 0 ? String.format("%.1f", wrp.getWinRate()) + "%" : "-";
+            MessageUtil.send(player, "  " + type.getColor() + type.getDisplayName()
+                    + " §fRP: §e" + wrp.getRp()
+                    + " §8| §a" + wrp.getWins() + "W §c" + wrp.getLosses() + "L"
+                    + " §8(§7" + wr + "§8)");
+        }
+
+        // Next rank info
+        RankClass nextRank = getNextRank(rank);
+        if (nextRank != null) {
+            int rpNeeded = nextRank.getRequiredRP() - totalRP;
+            MessageUtil.send(player, "§7次のランク: " + nextRank.getColoredName() + " §7まであと §e" + rpNeeded + " RP");
+        }
+
+        MessageUtil.send(player, "§6§l==============================");
+        return true;
+    }
+
+    /**
+     * /rank top [weapon] - Show top 10 leaderboard
+     */
+    private boolean handleTop(Player player, String[] args) {
+        if (args.length >= 2) {
+            // Weapon-specific top
+            WeaponType weapon = WeaponType.fromString(args[1]);
+            if (weapon == null) {
+                MessageUtil.sendError(player, "無効な武器タイプです。(STRIKER / GUNNER / MARKSMAN)");
+                return true;
+            }
+            showWeaponTop(player, weapon);
+        } else {
+            // Overall top
+            showOverallTop(player);
+        }
+        return true;
+    }
+
+    private void showOverallTop(Player player) {
+        List<Map<String, Object>> top = rankManager.getTopPlayers(10);
+        MessageUtil.send(player, "§6§l===== 総合ランキング TOP10 =====");
+
+        if (top.isEmpty()) {
+            MessageUtil.send(player, "§7データがありません。");
+        } else {
+            for (int i = 0; i < top.size(); i++) {
+                Map<String, Object> row = top.get(i);
+                String name = (String) row.get("name");
+                String rankStr = (String) row.get("rank_class");
+                int totalRp = (int) row.get("total_rp");
+                RankClass rc = RankClass.fromString(rankStr);
+
+                String posColor = i == 0 ? "§6" : i <= 2 ? "§f" : "§7";
+                MessageUtil.send(player, posColor + " #" + (i + 1) + " "
+                        + rc.getColor() + "[" + rc.getDisplayName() + "] §f" + name
+                        + " §8- §e" + totalRp + " RP");
+            }
+        }
+
+        MessageUtil.send(player, "§6§l================================");
+    }
+
+    private void showWeaponTop(Player player, WeaponType weapon) {
+        List<Map<String, Object>> top = rankManager.getTopByWeapon(weapon.name(), 10);
+        MessageUtil.send(player, "§6§l===== " + weapon.getColor() + weapon.getDisplayName()
+                + " §6§lランキング TOP10 =====");
+
+        if (top.isEmpty()) {
+            MessageUtil.send(player, "§7データがありません。");
+        } else {
+            for (int i = 0; i < top.size(); i++) {
+                Map<String, Object> row = top.get(i);
+                String name = (String) row.get("name");
+                int rp = (int) row.get("rp");
+                int wins = (int) row.get("wins");
+                int losses = (int) row.get("losses");
+
+                String posColor = i == 0 ? "§6" : i <= 2 ? "§f" : "§7";
+                MessageUtil.send(player, posColor + " #" + (i + 1) + " §f" + name
+                        + " §8- §e" + rp + " RP §8(§a" + wins + "W §c" + losses + "L§8)");
+            }
+        }
+
+        MessageUtil.send(player, "§6§l================================");
+    }
+
+    /**
+     * Get the next rank above the current one, or null if already S.
+     */
+    private RankClass getNextRank(RankClass current) {
+        return switch (current) {
+            case C -> RankClass.B;
+            case B -> RankClass.A;
+            case A -> RankClass.S;
+            case UNRANKED -> RankClass.C;
+            default -> null;
+        };
+    }
+
     private void sendUsage(Player player) {
         MessageUtil.send(player, "§6/rank コマンド一覧:");
         player.sendMessage("  §e/rank solo §7- ソロランクマッチに参加");
         player.sendMessage("  §e/rank practice §7- プラクティス（RP変動なし）");
         player.sendMessage("  §e/rank cancel §7- キューから離脱");
         player.sendMessage("  §e/rank status §7- 現在のステータス");
+        player.sendMessage("  §e/rank stats [player] §7- 戦績を表示");
+        player.sendMessage("  §e/rank top [weapon] §7- ランキングTOP10");
     }
 
     @Override
     public List<String> onTabComplete(CommandSender sender, Command command, String label, String[] args) {
         List<String> completions = new ArrayList<>();
         if (args.length == 1) {
-            completions.addAll(List.of("solo", "practice", "cancel", "status"));
+            completions.addAll(List.of("solo", "practice", "cancel", "status", "stats", "top"));
+        } else if (args.length == 2) {
+            String sub = args[0].toLowerCase();
+            if ("top".equals(sub)) {
+                completions.addAll(List.of("striker", "gunner", "marksman"));
+            } else if ("stats".equals(sub)) {
+                // Online player names
+                for (Player p : Bukkit.getOnlinePlayers()) {
+                    completions.add(p.getName());
+                }
+            }
         }
         String prefix = args[args.length - 1].toLowerCase();
         return completions.stream()

@@ -236,9 +236,10 @@ public class QueueManager {
         // Remove from queues
         leaveQueue(uuid);
 
-        // Handle match disconnect
+        // Handle match disconnect (ACTIVE or SUDDEN_DEATH)
         ArenaInstance match = getPlayerMatch(uuid);
-        if (match != null && match.getState() == ArenaInstance.MatchState.ACTIVE) {
+        if (match != null && (match.getState() == ArenaInstance.MatchState.ACTIVE
+                || match.getState() == ArenaInstance.MatchState.SUDDEN_DEATH)) {
             match.onPlayerEliminated(uuid);
         }
     }

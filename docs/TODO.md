@@ -127,16 +127,16 @@
 - [x] サドンデス演出（ボスバー赤化、警告メッセージ、ウィザースポーンSE）
 - [x] ボスバー（試合タイマー表示、緑→黄→赤の色変化、10分割ノッチ）
 
-### 10. RP・ランクシステム
-- [ ] 非対称Elo計算式実装
-  - [ ] 勝者: base(30) × coefficient, clamp(5, 120)
-  - [ ] 敗者: winnerGain × 0.7, min 5
-  - [ ] 参加ボーナス: +5
-- [ ] 武器タイプ別RP追跡
-- [ ] ランク判定: S(15000+), A(10000+), B(5000+), C(<5000)
-- [ ] /rank stats [player] コマンド
-- [ ] /rank top [weapon] コマンド（TOP10）
-- [ ] DB保存（weapon_rp更新）
+### 10. RP・ランクシステム（完了）
+- [x] 非対称Elo計算式実装
+  - [x] 勝者: base(30) × coefficient, clamp(5, 120)
+  - [x] 敗者: winnerGain × 0.7, min 5
+  - [x] 参加ボーナス: +5
+- [x] 武器タイプ別RP追跡
+- [x] ランク判定: S(15000+), A(10000+), B(5000+), C(<5000)
+- [x] /rank stats [player] コマンド
+- [x] /rank top [weapon] コマンド（TOP10）
+- [x] DB保存（weapon_rp更新）
 
 ### 11. チームシステム
 - [ ] Team モデル（name, leaderId, members）
