@@ -16,6 +16,10 @@ import org.bukkit.boss.BossBar;
 import org.bukkit.entity.Player;
 import org.bukkit.scheduler.BukkitRunnable;
 import org.bukkit.scheduler.BukkitTask;
+import org.bukkit.scoreboard.Criteria;
+import org.bukkit.scoreboard.DisplaySlot;
+import org.bukkit.scoreboard.Objective;
+import org.bukkit.scoreboard.Scoreboard;
 
 import java.util.*;
 import java.util.logging.Logger;
@@ -72,6 +76,9 @@ public class ArenaInstance {
 
     // Boss bar for match timer
     private BossBar bossBar;
+
+    // Sidebar scoreboard
+    private Scoreboard scoreboard;
 
     // Spawn locations
     private Location spawn1;
@@ -233,6 +240,9 @@ public class ArenaInstance {
         bossBar.setStyle(BarStyle.SEGMENTED_10);
         updateBossBar();
 
+        // Create sidebar scoreboard
+        createScoreboard();
+
         broadcast("§a§l▶ 試合開始！");
         for (UUID uuid : players) {
             Player p = Bukkit.getPlayer(uuid);
@@ -253,6 +263,7 @@ public class ArenaInstance {
 
                 timeRemaining--;
                 updateBossBar();
+                updateScoreboard();
 
                 // Time warnings
                 if (timeRemaining == 60) {
@@ -830,6 +841,10 @@ public class ArenaInstance {
             if (p != null) {
                 broadcast("§d§l★ " + p.getName() + " §7が §f" + oldRank + " §7→ " + newRank + " §7にランクアップ！");
                 p.sendTitle("§d§lランク変動！", newRank, 5, 60, 20);
+                // Update tab list name
+                if (plugin.getChatTabListener() != null) {
+                    plugin.getChatTabListener().updateTabName(p);
+                }
             }
         }
     }
@@ -846,6 +861,9 @@ public class ArenaInstance {
             bossBar.removeAll();
             bossBar = null;
         }
+
+        // Remove scoreboard
+        removeScoreboard();
 
         for (UUID uuid : players) {
             etherManager.removePlayer(uuid);
@@ -943,6 +961,102 @@ public class ArenaInstance {
         }
     }
 
+    // ==================== Scoreboard ====================
+
+    /**
+     * Create the sidebar scoreboard for all match participants.
+     */
+    private void createScoreboard() {
+        scoreboard = Bukkit.getScoreboardManager().getNewScoreboard();
+        Objective obj = scoreboard.registerNewObjective("brb_match", Criteria.DUMMY, "§6§lBRB Match #" + matchId);
+        obj.setDisplaySlot(DisplaySlot.SIDEBAR);
+        updateScoreboard();
+
+        for (UUID uuid : players) {
+            Player p = Bukkit.getPlayer(uuid);
+            if (p != null) p.setScoreboard(scoreboard);
+        }
+        for (UUID uuid : spectators) {
+            Player p = Bukkit.getPlayer(uuid);
+            if (p != null) p.setScoreboard(scoreboard);
+        }
+    }
+
+    /**
+     * Update sidebar scoreboard lines.
+     */
+    private void updateScoreboard() {
+        if (scoreboard == null) return;
+        Objective obj = scoreboard.getObjective("brb_match");
+        if (obj == null) return;
+
+        // Clear existing entries
+        for (String entry : scoreboard.getEntries()) {
+            scoreboard.resetScores(entry);
+        }
+
+        int line = 10;
+        String typeName = switch (matchType) {
+            case SOLO_RANKED -> "§eソロランク";
+            case TEAM_RANKED -> "§dチームランク";
+            case PRACTICE -> "§aプラクティス";
+        };
+        obj.getScore(typeName).setScore(line--);
+
+        // Time
+        int minutes = timeRemaining / 60;
+        int seconds = timeRemaining % 60;
+        String stateStr = state == MatchState.SUDDEN_DEATH ? "§c§lサドンデス" : "§f残り時間";
+        obj.getScore(stateStr + " §7" + String.format("%d:%02d", minutes, seconds)).setScore(line--);
+
+        obj.getScore("§8─────────").setScore(line--);
+
+        // Players status
+        int alive = 0;
+        int total = players.size();
+        for (UUID uuid : players) {
+            if (!eliminated.contains(uuid)) alive++;
+        }
+        obj.getScore("§f生存: §a" + alive + " §7/ §f" + total).setScore(line--);
+
+        // Ether per player
+        for (UUID uuid : players) {
+            Player p = Bukkit.getPlayer(uuid);
+            if (p == null) continue;
+            String name = p.getName();
+            if (name.length() > 10) name = name.substring(0, 10);
+            if (eliminated.contains(uuid)) {
+                obj.getScore("§c✖ " + name).setScore(line--);
+            } else {
+                int ether = etherManager.getEther(uuid);
+                String etherColor = ether <= 100 ? "§c" : ether <= 200 ? "§e" : "§b";
+                obj.getScore("§a● " + name + " " + etherColor + ether).setScore(line--);
+            }
+            if (line <= 0) break;
+        }
+    }
+
+    /**
+     * Remove scoreboard from all players and reset to main scoreboard.
+     */
+    private void removeScoreboard() {
+        if (scoreboard == null) return;
+        Scoreboard main = Bukkit.getScoreboardManager().getMainScoreboard();
+        for (UUID uuid : players) {
+            Player p = Bukkit.getPlayer(uuid);
+            if (p != null && p.isOnline()) {
+                p.setScoreboard(main);
+            }
+        }
+        for (UUID uuid : spectators) {
+            Player p = Bukkit.getPlayer(uuid);
+            if (p != null && p.isOnline()) {
+                p.setScoreboard(main);
+            }
+        }
+        scoreboard = null;
+    }
+
     /**
      * Send a message to all players and spectators in this match.
      */
@@ -1012,6 +1126,9 @@ public class ArenaInstance {
             Location specLoc = getSpectatorLocation();
             if (specLoc != null) {
                 p.teleport(specLoc);
+            }
+            if (scoreboard != null) {
+                p.setScoreboard(scoreboard);
             }
             if (bossBar != null) {
                 bossBar.addPlayer(p);
