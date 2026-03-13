@@ -2,6 +2,7 @@ package com.butai.rankbattle;
 
 import com.butai.rankbattle.database.DatabaseManager;
 import com.butai.rankbattle.database.FrameSetDAO;
+import com.butai.rankbattle.database.MatchHistoryDAO;
 import com.butai.rankbattle.database.PlayerDAO;
 import com.butai.rankbattle.database.SeasonDAO;
 import com.butai.rankbattle.database.TeamDAO;
@@ -45,6 +46,7 @@ public class BRBPlugin extends JavaPlugin {
     private EtherManager etherManager;
     private QueueManager queueManager;
     private LobbyManager lobbyManager;
+    private MatchHistoryDAO matchHistoryDAO;
     private FrameCommand frameCommand;
     private ChatTabListener chatTabListener;
 
@@ -77,6 +79,7 @@ public class BRBPlugin extends JavaPlugin {
         // Initialize DAOs
         playerDAO = new PlayerDAO(databaseManager, log);
         frameSetDAO = new FrameSetDAO(databaseManager, log);
+        matchHistoryDAO = new MatchHistoryDAO(databaseManager, log);
 
         // Initialize managers
         TeamDAO teamDAO = new TeamDAO(databaseManager, log);
@@ -120,7 +123,7 @@ public class BRBPlugin extends JavaPlugin {
             frameCmdObj.setTabCompleter(frameCommand);
         }
 
-        RankCommand rankCommand = new RankCommand(queueManager, rankManager);
+        RankCommand rankCommand = new RankCommand(queueManager, rankManager, matchHistoryDAO);
         PluginCommand rankCmdObj = getCommand("rank");
         if (rankCmdObj != null) {
             rankCmdObj.setExecutor(rankCommand);
@@ -229,5 +232,9 @@ public class BRBPlugin extends JavaPlugin {
 
     public ChatTabListener getChatTabListener() {
         return chatTabListener;
+    }
+
+    public MatchHistoryDAO getMatchHistoryDAO() {
+        return matchHistoryDAO;
     }
 }

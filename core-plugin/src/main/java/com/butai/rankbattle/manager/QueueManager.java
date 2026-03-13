@@ -2,6 +2,7 @@ package com.butai.rankbattle.manager;
 
 import com.butai.rankbattle.BRBPlugin;
 import com.butai.rankbattle.arena.ArenaInstance;
+import com.butai.rankbattle.model.ArenaMap;
 import com.butai.rankbattle.util.MessageUtil;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
@@ -286,6 +287,17 @@ public class QueueManager {
     }
 
     /**
+     * Select a random arena map from FrameRegistry.
+     * Falls back to null if no maps are configured.
+     */
+    private ArenaMap selectRandomMap() {
+        Collection<ArenaMap> maps = plugin.getFrameRegistry().getAllArenaMaps();
+        if (maps.isEmpty()) return null;
+        List<ArenaMap> mapList = new ArrayList<>(maps);
+        return mapList.get(new Random().nextInt(mapList.size()));
+    }
+
+    /**
      * Create a new match between two players.
      */
     private void createMatch(UUID p1, UUID p2, ArenaInstance.MatchType type) {
@@ -293,28 +305,37 @@ public class QueueManager {
         match.addPlayer(p1);
         match.addPlayer(p2);
 
-        // Set spawn locations using world spawn with offsets
-        Location lobbyLoc = plugin.getEtherManager().getMaxEther() > 0
-                ? getArenaSpawnLocations(p1)
-                : null;
-
-        // Get arena spawn points (use world spawn area with offsets for now)
-        Player player1 = Bukkit.getPlayer(p1);
-        if (player1 != null) {
-            World world = player1.getWorld();
-            Location center = world.getSpawnLocation();
-            // Spawn players 30 blocks apart
-            Location s1 = center.clone().add(15, 0, 0);
-            s1.setY(world.getHighestBlockYAt(s1.getBlockX(), s1.getBlockZ()) + 1);
-            Location s2 = center.clone().add(-15, 0, 0);
-            s2.setY(world.getHighestBlockYAt(s2.getBlockX(), s2.getBlockZ()) + 1);
-            match.setSpawnLocations(s1, s2);
+        // Select arena map and set spawn locations
+        ArenaMap arenaMap = selectRandomMap();
+        if (arenaMap != null) {
+            World world = Bukkit.getWorld(arenaMap.getWorldName());
+            if (world != null) {
+                Location s1 = new Location(world, arenaMap.getSpawn1X(), arenaMap.getSpawn1Y(), arenaMap.getSpawn1Z());
+                Location s2 = new Location(world, arenaMap.getSpawn2X(), arenaMap.getSpawn2Y(), arenaMap.getSpawn2Z());
+                Location spec = new Location(world, arenaMap.getSpectateX(), arenaMap.getSpectateY(), arenaMap.getSpectateZ());
+                match.setSpawnLocations(s1, s2);
+                match.setSpectateLocation(spec);
+                match.setBorderRadius(arenaMap.getBorderRadius());
+                match.setMapName(arenaMap.getName());
+            }
+        } else {
+            // Fallback: use world spawn with offsets
+            Player player1 = Bukkit.getPlayer(p1);
+            if (player1 != null) {
+                World world = player1.getWorld();
+                Location center = world.getSpawnLocation();
+                Location s1 = center.clone().add(15, 0, 0);
+                s1.setY(world.getHighestBlockYAt(s1.getBlockX(), s1.getBlockZ()) + 1);
+                Location s2 = center.clone().add(-15, 0, 0);
+                s2.setY(world.getHighestBlockYAt(s2.getBlockX(), s2.getBlockZ()) + 1);
+                match.setSpawnLocations(s1, s2);
+            }
         }
 
         // Set lobby location from EtherManager (loaded from frames.yml)
-        Location lobbyLoc2 = plugin.getEtherManager().getLobbyLocation();
-        if (lobbyLoc2 != null) {
-            match.setLobbyLocation(lobbyLoc2);
+        Location lobbyLoc = plugin.getEtherManager().getLobbyLocation();
+        if (lobbyLoc != null) {
+            match.setLobbyLocation(lobbyLoc);
         }
 
         // Register match
@@ -337,7 +358,8 @@ public class QueueManager {
         match.startCountdown();
 
         String typeName = type == ArenaInstance.MatchType.PRACTICE ? "プラクティス" : "ランク";
-        logger.info(typeName + "マッチ #" + match.getMatchId() + " created: "
+        String mapInfo = arenaMap != null ? " [" + arenaMap.getName() + "]" : "";
+        logger.info(typeName + "マッチ #" + match.getMatchId() + mapInfo + " created: "
                 + p1.toString().substring(0, 8) + " vs " + p2.toString().substring(0, 8));
     }
 
@@ -362,7 +384,7 @@ public class QueueManager {
             String name = p != null ? p.getName() : uuid.toString().substring(0, 8);
             match.broadcast("§c§l✖ " + name + " §7が切断しました！(E-Shift扱い)");
 
-            match.onPlayerEliminated(uuid);
+            match.onPlayerDisconnected(uuid);
 
             // Track disconnect penalty (practice matches excluded)
             if (match.getMatchType() != ArenaInstance.MatchType.PRACTICE) {
@@ -410,23 +432,37 @@ public class QueueManager {
         ArenaInstance match = new ArenaInstance(plugin, ArenaInstance.MatchType.TEAM_RANKED);
         match.addTeams(team1.getMembers(), team2.getMembers());
 
-        // Get arena spawn points
-        Player anyPlayer = Bukkit.getPlayer(team1.getLeaderId());
-        if (anyPlayer != null) {
-            World world = anyPlayer.getWorld();
-            Location center = world.getSpawnLocation();
-            // Spawn teams 30 blocks apart
-            Location s1 = center.clone().add(15, 0, 0);
-            s1.setY(world.getHighestBlockYAt(s1.getBlockX(), s1.getBlockZ()) + 1);
-            Location s2 = center.clone().add(-15, 0, 0);
-            s2.setY(world.getHighestBlockYAt(s2.getBlockX(), s2.getBlockZ()) + 1);
-            match.setSpawnLocations(s1, s2);
+        // Select arena map and set spawn locations
+        ArenaMap arenaMap = selectRandomMap();
+        if (arenaMap != null) {
+            World world = Bukkit.getWorld(arenaMap.getWorldName());
+            if (world != null) {
+                Location s1 = new Location(world, arenaMap.getSpawn1X(), arenaMap.getSpawn1Y(), arenaMap.getSpawn1Z());
+                Location s2 = new Location(world, arenaMap.getSpawn2X(), arenaMap.getSpawn2Y(), arenaMap.getSpawn2Z());
+                Location spec = new Location(world, arenaMap.getSpectateX(), arenaMap.getSpectateY(), arenaMap.getSpectateZ());
+                match.setSpawnLocations(s1, s2);
+                match.setSpectateLocation(spec);
+                match.setBorderRadius(arenaMap.getBorderRadius());
+                match.setMapName(arenaMap.getName());
+            }
+        } else {
+            // Fallback: use world spawn with offsets
+            Player anyPlayer = Bukkit.getPlayer(team1.getLeaderId());
+            if (anyPlayer != null) {
+                World world = anyPlayer.getWorld();
+                Location center = world.getSpawnLocation();
+                Location s1 = center.clone().add(15, 0, 0);
+                s1.setY(world.getHighestBlockYAt(s1.getBlockX(), s1.getBlockZ()) + 1);
+                Location s2 = center.clone().add(-15, 0, 0);
+                s2.setY(world.getHighestBlockYAt(s2.getBlockX(), s2.getBlockZ()) + 1);
+                match.setSpawnLocations(s1, s2);
+            }
         }
 
         // Set lobby location from EtherManager (loaded from frames.yml)
-        Location teamLobbyLoc = plugin.getEtherManager().getLobbyLocation();
-        if (teamLobbyLoc != null) {
-            match.setLobbyLocation(teamLobbyLoc);
+        Location lobbyLoc = plugin.getEtherManager().getLobbyLocation();
+        if (lobbyLoc != null) {
+            match.setLobbyLocation(lobbyLoc);
         }
 
         // Register match
@@ -449,7 +485,8 @@ public class QueueManager {
         // Start countdown
         match.startCountdown();
 
-        logger.info("チームランクマッチ #" + match.getMatchId() + " created: "
+        String mapInfo = arenaMap != null ? " [" + arenaMap.getName() + "]" : "";
+        logger.info("チームランクマッチ #" + match.getMatchId() + mapInfo + " created: "
                 + team1.getName() + " vs " + team2.getName());
     }
 
@@ -560,8 +597,4 @@ public class QueueManager {
         return p != null && p.isOnline();
     }
 
-    private Location getArenaSpawnLocations(UUID uuid) {
-        Player p = Bukkit.getPlayer(uuid);
-        return p != null ? p.getWorld().getSpawnLocation() : null;
-    }
 }

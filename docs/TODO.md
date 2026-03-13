@@ -221,16 +221,52 @@
 
 ---
 
+## Phase 2: 機能拡張
+
+### 21. マッチ履歴DB保存（完了）
+- [x] MatchHistoryDAO作成（match_history + match_results テーブルへのINSERT/SELECT）
+- [x] ArenaInstance.finishMatch()でDB保存（マッチタイプ、マップ名、結果タイプ、所要時間）
+- [x] 各プレイヤー結果保存（武器タイプ、ダメージ、エーテル残量、RP変動、順位）
+- [x] 結果タイプの正確な追跡（kill/judge/sudden_death/draw/disconnect）
+- [x] 切断時のresultType設定（onPlayerDisconnected）
+- [x] /rank history [player] コマンド（直近10件表示）
+- [x] タブ補完対応
+
+### 22. 複数アリーナマップ対応（完了）
+- [x] QueueManagerでFrameRegistryからランダムマップ選択
+- [x] ArenaInstanceにマップ名・観戦座標・ボーダー半径を渡す
+- [x] frames.ymlへの追加マップ定義（default, forest, ruins の3マップ）
+- [x] ワールドボーダー適用（試合開始時にセット、終了時にリセット）
+- [x] 観戦座標をマップ設定から取得（フォールバック: スポーン中間点）
+- [x] マッチ開始時のマップ名表示
+
+### 23. チームランキング
+- [ ] team_rpの更新ロジック
+- [ ] /team rank コマンド
+- [ ] TeamDAO.updateTeamRP()
+
+### 24. RP近似マッチング
+- [ ] QueueManagerのFIFO→RP範囲マッチングに改修
+- [ ] 待ち時間に応じた範囲拡大
+
+### 25. フレーム特殊効果の完全実装
+- [ ] Seeker: ホーミング射撃
+- [ ] Bastion: シールドモード切替
+- [ ] Nova: 着弾時爆発
+- [ ] Falcon: チャージ2.0秒→2.5倍
+- [ ] Zenith: チャージ3.0秒→3.0倍
+- [ ] Volt: 貫通3体
+- [ ] Leap: ジャンプ2.5倍
+- [ ] Warp: 瞬間移動32m
+- [ ] Rampart: 障壁生成
+- [ ] Blast: 爆発
+- [ ] Tracer: 発光効果
+- [ ] Barrier: 吸収8.0付与
+
 ## Phase 2以降（参考）
 
-- [ ] 全フレーム特殊効果の完全実装（Seeker ホーミング、Bastion シールドモード等）
-- [ ] マッチ履歴のDB保存・閲覧（/rank history）
-- [ ] 複数アリーナマップ対応
-- [ ] フレームセットプリセット保存・ロード
 - [ ] シーズン報酬システム
 - [ ] リソースパック（カスタム武器モデル、SE、エフェクト）
-- [ ] マッチメイキング改善（RP近似マッチング）
-- [ ] チームランキング
 - [ ] 観戦者HUD（フリーカメラ、プレイヤー切替）
 - [ ] カスタムマッチ（ルームコード、ルール設定）
 - [ ] トーナメントモード

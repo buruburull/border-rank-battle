@@ -751,6 +751,7 @@ butai-rank-battle/
 | `/rank cancel` | キューをキャンセル |
 | `/rank stats [player]` | 戦績表示 |
 | `/rank top [weapon]` | ランキングTOP10 |
+| `/rank history [player]` | マッチ履歴（直近10件） |
 | `/rank spectate [matchId]` | 試合観戦 |
 | `/rank history [page]` | マッチ履歴 |
 | `/frame set <slot> <name>` | フレーム装備 |

@@ -22,6 +22,9 @@ import org.bukkit.scoreboard.DisplaySlot;
 import org.bukkit.scoreboard.Objective;
 import org.bukkit.scoreboard.Scoreboard;
 
+import com.butai.rankbattle.database.MatchHistoryDAO;
+import com.butai.rankbattle.database.SeasonDAO;
+
 import java.util.*;
 import java.util.logging.Logger;
 
@@ -66,6 +69,13 @@ public class ArenaInstance {
     private final Map<Location, BlockState> originalBlocks = new LinkedHashMap<>();
     // Weapon type per player (determined at match start from slot 1)
     private final Map<UUID, WeaponType> playerWeaponTypes = new HashMap<>();
+    // RP changes per player (recorded during endMatch/endTeamMatch for DB saving)
+    private final Map<UUID, Integer> rpChanges = new HashMap<>();
+    // Match result tracking for DB
+    private String resultType = "kill"; // kill, judge, sudden_death, draw, disconnect
+    private String mapName = "default";
+    private UUID matchWinner = null; // solo winner UUID
+    private int winningTeamIndex = -1; // team match winning team
 
     // Match timing
     private int timeLimit; // seconds
@@ -86,6 +96,12 @@ public class ArenaInstance {
     // Spawn locations
     private Location spawn1;
     private Location spawn2;
+
+    // Spectator location (from map config, or calculated from spawns)
+    private Location spectateLocation;
+
+    // World border radius (from map config)
+    private int borderRadius = 50;
 
     // Lobby location for return
     private Location lobbyLocation;
@@ -123,8 +139,20 @@ public class ArenaInstance {
         this.lobbyLocation = lobby;
     }
 
+    public void setSpectateLocation(Location spectateLocation) {
+        this.spectateLocation = spectateLocation;
+    }
+
+    public void setBorderRadius(int borderRadius) {
+        this.borderRadius = borderRadius;
+    }
+
     public void setEndCallback(MatchEndCallback callback) {
         this.endCallback = callback;
+    }
+
+    public void setMapName(String mapName) {
+        this.mapName = mapName;
     }
 
     /**
@@ -191,6 +219,9 @@ public class ArenaInstance {
         }
 
         broadcast("§e§lマッチが見つかりました！ §710秒後に開始します...");
+        if (!mapName.equals("default")) {
+            broadcast("§7マップ: §f" + mapName);
+        }
 
         countdownTask = new BukkitRunnable() {
             @Override
@@ -255,6 +286,9 @@ public class ArenaInstance {
             }
         }
 
+        // Apply world border around arena center
+        applyWorldBorder();
+
         // Start match timer (ticks every second)
         matchTimerTask = new BukkitRunnable() {
             @Override
@@ -293,6 +327,16 @@ public class ArenaInstance {
         if (!eliminated.add(uuid)) return; // Already eliminated
 
         checkWinCondition();
+    }
+
+    /**
+     * Called when a player disconnects during match (sets result type to disconnect).
+     */
+    public void onPlayerDisconnected(UUID uuid) {
+        if (resultType.equals("kill")) {
+            resultType = "disconnect";
+        }
+        onPlayerEliminated(uuid);
     }
 
     /**
@@ -351,20 +395,22 @@ public class ArenaInstance {
             double s2 = scores.getOrDefault(p2, 0.0);
 
             if (isWithinDrawThreshold(s1, s2)) {
-                // Enter sudden death
                 startSuddenDeath();
-            } else if (s1 > s2) {
-                broadcast("§6§lジャッジ判定: §f勝者決定！");
-                endMatch(p1, p2);
             } else {
+                resultType = "judge";
                 broadcast("§6§lジャッジ判定: §f勝者決定！");
-                endMatch(p2, p1);
+                if (s1 > s2) {
+                    endMatch(p1, p2);
+                } else {
+                    endMatch(p2, p1);
+                }
             }
         } else {
             double[] teamScores = calculateTeamScores(scores);
             if (isWithinDrawThreshold(teamScores[0], teamScores[1])) {
                 startSuddenDeath();
             } else {
+                resultType = "judge";
                 broadcast("§6§lジャッジ判定: §f勝者決定！");
                 endTeamMatch(teamScores[0] > teamScores[1] ? 0 : 1);
             }
@@ -402,6 +448,7 @@ public class ArenaInstance {
      */
     private void startSuddenDeath() {
         state = MatchState.SUDDEN_DEATH;
+        resultType = "sudden_death";
         timeRemaining = SUDDEN_DEATH_TIME;
 
         // Accelerate ether leak (3x: 0.5 → 1.5)
@@ -480,6 +527,7 @@ public class ArenaInstance {
         // Reset leak coefficient
         etherManager.resetLeakCoefficient();
 
+        resultType = "draw";
         endMatch(null, null); // Draw
     }
 
@@ -553,6 +601,7 @@ public class ArenaInstance {
         etherManager.resetLeakCoefficient();
 
         if (winner != null && loser != null) {
+            matchWinner = winner;
             Player winnerPlayer = Bukkit.getPlayer(winner);
             Player loserPlayer = Bukkit.getPlayer(loser);
             String winnerName = winnerPlayer != null ? winnerPlayer.getName() : "???";
@@ -605,15 +654,16 @@ public class ArenaInstance {
     /**
      * End a team match with a winning team index.
      */
-    private void endTeamMatch(int winningTeamIndex) {
+    private void endTeamMatch(int winningTeamIdx) {
         if (state == MatchState.ENDING || state == MatchState.FINISHED) return;
         state = MatchState.ENDING;
+        this.winningTeamIndex = winningTeamIdx;
 
         cancelTasks();
         etherManager.resetLeakCoefficient();
 
-        Set<UUID> winners = teamData.get(winningTeamIndex);
-        int losingTeamIndex = winningTeamIndex == 0 ? 1 : 0;
+        Set<UUID> winners = teamData.get(winningTeamIdx);
+        int losingTeamIndex = winningTeamIdx == 0 ? 1 : 0;
         Set<UUID> losers = teamData.get(losingTeamIndex);
 
         // Build winner/loser name lists
@@ -718,6 +768,7 @@ public class ArenaInstance {
             if (dmg >= 20) gain += 5; // significant damage bonus
 
             rankManager.applyMatchResult(uuid, wt, gain, true);
+            rpChanges.put(uuid, gain);
 
             Player p = Bukkit.getPlayer(uuid);
             String name = p != null ? p.getName() : "???";
@@ -746,6 +797,7 @@ public class ArenaInstance {
             if (dmg >= 20) loss = Math.max(5, loss - 5);
 
             rankManager.applyMatchResult(uuid, wt, -loss, false);
+            rpChanges.put(uuid, -loss);
 
             Player p = Bukkit.getPlayer(uuid);
             String name = p != null ? p.getName() : "???";
@@ -784,8 +836,10 @@ public class ArenaInstance {
 
         // Apply to winner
         rankManager.applyMatchResult(winner, winnerWeapon, winnerGain, true);
+        rpChanges.put(winner, winnerGain);
         // Apply to loser (negative RP)
         rankManager.applyMatchResult(loser, loserWeapon, -loserLoss, false);
+        rpChanges.put(loser, -loserLoss);
 
         // Broadcast RP changes
         Player wp = Bukkit.getPlayer(winner);
@@ -824,6 +878,7 @@ public class ArenaInstance {
 
             int currentRP = data.getWeaponRP(weapon).getRp();
             rankManager.applyMatchResult(uuid, weapon, participationBonus, false);
+            rpChanges.put(uuid, participationBonus);
 
             Player p = Bukkit.getPlayer(uuid);
             String name = p != null ? p.getName() : "???";
@@ -859,8 +914,14 @@ public class ArenaInstance {
         state = MatchState.FINISHED;
         FrameCommand fc = plugin.getFrameCommand();
 
+        // Save match history to DB (async-safe: runs on main thread before teleport)
+        saveMatchHistory();
+
         // Restore blocks changed during the match
         restoreBlocks();
+
+        // Reset world border
+        resetWorldBorder();
 
         // Remove boss bar
         if (bossBar != null) {
@@ -913,6 +974,70 @@ public class ArenaInstance {
         }
 
         logger.info("Match #" + matchId + " finished.");
+    }
+
+    /**
+     * Save match history and per-player results to DB.
+     */
+    private void saveMatchHistory() {
+        MatchHistoryDAO matchDAO = new MatchHistoryDAO(plugin.getDatabaseManager(), logger);
+        SeasonDAO seasonDAO = new SeasonDAO(plugin.getDatabaseManager(), logger);
+
+        // Determine match type string for DB
+        String matchTypeStr = switch (matchType) {
+            case SOLO_RANKED -> "solo";
+            case TEAM_RANKED -> "team";
+            case PRACTICE -> "practice";
+        };
+
+        int seasonId = seasonDAO.getActiveSeasonId();
+        int durationSec = timeLimit - timeRemaining;
+        if (durationSec < 0) durationSec = timeLimit;
+
+        int dbMatchId = matchDAO.insertMatchHistory(matchTypeStr, mapName,
+                seasonId > 0 ? seasonId : null, resultType, durationSec);
+        if (dbMatchId < 0) {
+            logger.warning("Failed to save match history for match #" + matchId);
+            return;
+        }
+
+        // Determine placement per player
+        for (UUID uuid : players) {
+            WeaponType wt = playerWeaponTypes.get(uuid);
+            String weaponStr = wt != null ? wt.name() : "STRIKER";
+            double damage = damageDealt.getOrDefault(uuid, 0.0);
+            int ether = etherManager.getEther(uuid);
+            int rpChange = rpChanges.getOrDefault(uuid, 0);
+            boolean survived = !eliminated.contains(uuid);
+            int kills = 0; // kill tracking is done via elimination count
+            int deaths = eliminated.contains(uuid) ? 1 : 0;
+
+            // Determine placement: 1=winner, 2=loser
+            int placement;
+            if (teamData.isEmpty()) {
+                // Solo: winner=matchWinner
+                if (matchWinner != null && matchWinner.equals(uuid)) {
+                    placement = 1;
+                } else if (matchWinner != null) {
+                    placement = 2;
+                } else {
+                    placement = 0; // draw
+                }
+            } else {
+                // Team: check winning team
+                if (winningTeamIndex >= 0) {
+                    Set<UUID> winTeam = teamData.get(winningTeamIndex);
+                    placement = (winTeam != null && winTeam.contains(uuid)) ? 1 : 2;
+                } else {
+                    placement = 0; // draw
+                }
+            }
+
+            matchDAO.insertMatchResult(dbMatchId, uuid, null, weaponStr,
+                    kills, deaths, damage, ether, null, survived, rpChange, placement);
+        }
+
+        logger.info("Match #" + matchId + " saved to DB as match_history id=" + dbMatchId);
     }
 
     /**
@@ -1100,9 +1225,10 @@ public class ArenaInstance {
     }
 
     /**
-     * Get spectator location (midpoint between spawns, elevated).
+     * Get spectator location (from map config, or midpoint between spawns).
      */
     public Location getSpectatorLocation() {
+        if (spectateLocation != null) return spectateLocation;
         if (spawn1 == null || spawn2 == null) return null;
         return spawn1.clone().add(spawn2).multiply(0.5).add(0, 10, 0);
     }
@@ -1184,5 +1310,41 @@ public class ArenaInstance {
         }
         originalBlocks.clear();
         logger.info("Match #" + matchId + ": Restored " + count + " blocks.");
+    }
+
+    /**
+     * Apply world border centered between spawn points with configured radius.
+     */
+    private void applyWorldBorder() {
+        if (spawn1 == null || spawn2 == null) return;
+        org.bukkit.World world = spawn1.getWorld();
+        if (world == null) return;
+
+        // Center between the two spawns
+        double centerX = (spawn1.getX() + spawn2.getX()) / 2.0;
+        double centerZ = (spawn1.getZ() + spawn2.getZ()) / 2.0;
+
+        org.bukkit.WorldBorder wb = world.getWorldBorder();
+        wb.setCenter(centerX, centerZ);
+        wb.setSize(borderRadius * 2.0);
+        wb.setDamageAmount(2.0);
+        wb.setDamageBuffer(1.0);
+        wb.setWarningDistance(5);
+
+        logger.info("Match #" + matchId + ": World border set at (" + centerX + ", " + centerZ
+                + ") radius=" + borderRadius);
+    }
+
+    /**
+     * Reset world border to default (very large).
+     */
+    private void resetWorldBorder() {
+        if (spawn1 == null) return;
+        org.bukkit.World world = spawn1.getWorld();
+        if (world == null) return;
+
+        org.bukkit.WorldBorder wb = world.getWorldBorder();
+        wb.reset();
+        logger.info("Match #" + matchId + ": World border reset.");
     }
 }

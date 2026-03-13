@@ -2,6 +2,7 @@ package com.butai.rankbattle.command;
 
 import com.butai.rankbattle.BRBPlugin;
 import com.butai.rankbattle.arena.ArenaInstance;
+import com.butai.rankbattle.database.MatchHistoryDAO;
 import com.butai.rankbattle.manager.QueueManager;
 import com.butai.rankbattle.manager.RankManager;
 import com.butai.rankbattle.model.BRBPlayer;
@@ -18,6 +19,8 @@ import org.bukkit.command.CommandSender;
 import org.bukkit.command.TabCompleter;
 import org.bukkit.entity.Player;
 
+import java.sql.Timestamp;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -31,10 +34,12 @@ public class RankCommand implements CommandExecutor, TabCompleter {
 
     private final QueueManager queueManager;
     private final RankManager rankManager;
+    private final MatchHistoryDAO matchHistoryDAO;
 
-    public RankCommand(QueueManager queueManager, RankManager rankManager) {
+    public RankCommand(QueueManager queueManager, RankManager rankManager, MatchHistoryDAO matchHistoryDAO) {
         this.queueManager = queueManager;
         this.rankManager = rankManager;
+        this.matchHistoryDAO = matchHistoryDAO;
     }
 
     @Override
@@ -59,6 +64,7 @@ public class RankCommand implements CommandExecutor, TabCompleter {
             case "stats" -> handleStats(player, args);
             case "top" -> handleTop(player, args);
             case "spectate" -> handleSpectate(player, args);
+            case "history" -> handleHistory(player, args);
             default -> {
                 sendUsage(player);
                 yield true;
@@ -338,6 +344,80 @@ public class RankCommand implements CommandExecutor, TabCompleter {
         };
     }
 
+    /**
+     * /rank history [player] - Show recent match history (last 10 matches)
+     */
+    private boolean handleHistory(Player player, String[] args) {
+        UUID targetUuid;
+        String targetName;
+
+        if (args.length >= 2) {
+            Player target = Bukkit.getPlayerExact(args[1]);
+            if (target != null) {
+                targetUuid = target.getUniqueId();
+                targetName = target.getName();
+            } else {
+                MessageUtil.sendError(player, "プレイヤー '" + args[1] + "' がオンラインではありません。");
+                return true;
+            }
+        } else {
+            targetUuid = player.getUniqueId();
+            targetName = player.getName();
+        }
+
+        List<Map<String, Object>> history = matchHistoryDAO.getPlayerHistory(targetUuid, 10);
+
+        MessageUtil.send(player, "§6§l===== マッチ履歴 (" + targetName + ") =====");
+
+        if (history.isEmpty()) {
+            MessageUtil.send(player, "§7マッチ履歴がありません。");
+        } else {
+            SimpleDateFormat sdf = new SimpleDateFormat("MM/dd HH:mm");
+            for (Map<String, Object> row : history) {
+                String matchType = (String) row.get("match_type");
+                int durationSec = (int) row.get("duration_sec");
+                String weaponType = (String) row.get("weapon_type");
+                int rpChange = (int) row.get("rp_change");
+                int placement = (int) row.get("placement");
+                double damageDealt = (double) row.get("damage_dealt");
+                Timestamp startedAt = (Timestamp) row.get("started_at");
+
+                String typeColor = switch (matchType) {
+                    case "solo" -> "§e";
+                    case "team" -> "§d";
+                    case "practice" -> "§a";
+                    default -> "§7";
+                };
+
+                String resultStr;
+                if (placement == 1) {
+                    resultStr = "§a勝利";
+                } else if (placement == 2) {
+                    resultStr = "§c敗北";
+                } else {
+                    resultStr = "§e引分";
+                }
+
+                String rpStr = rpChange >= 0 ? "§a+" + rpChange : "§c" + rpChange;
+                String dateStr = startedAt != null ? sdf.format(startedAt) : "???";
+                int mins = durationSec / 60;
+                int secs = durationSec % 60;
+
+                WeaponType wt = WeaponType.fromString(weaponType);
+                String weaponDisplay = wt != null ? wt.getColor() + wt.getDisplayName() : "§7" + weaponType;
+
+                MessageUtil.send(player, "§7" + dateStr + " " + typeColor + matchType
+                        + " §8| " + resultStr + " §8| " + rpStr + " RP"
+                        + " §8| " + weaponDisplay
+                        + " §8| §7" + String.format("%d:%02d", mins, secs)
+                        + " §8| §7DMG:" + String.format("%.0f", damageDealt));
+            }
+        }
+
+        MessageUtil.send(player, "§6§l================================");
+        return true;
+    }
+
     private void sendUsage(Player player) {
         MessageUtil.send(player, "§6/rank コマンド一覧:");
         player.sendMessage("  §e/rank solo §7- ソロランクマッチに参加");
@@ -347,6 +427,7 @@ public class RankCommand implements CommandExecutor, TabCompleter {
         player.sendMessage("  §e/rank status §7- 現在のステータス");
         player.sendMessage("  §e/rank stats [player] §7- 戦績を表示");
         player.sendMessage("  §e/rank top [weapon] §7- ランキングTOP10");
+        player.sendMessage("  §e/rank history [player] §7- マッチ履歴");
         player.sendMessage("  §e/rank spectate [matchId] §7- 試合を観戦");
         player.sendMessage("  §e/rank spectate leave §7- 観戦終了");
     }
@@ -355,7 +436,7 @@ public class RankCommand implements CommandExecutor, TabCompleter {
     public List<String> onTabComplete(CommandSender sender, Command command, String label, String[] args) {
         List<String> completions = new ArrayList<>();
         if (args.length == 1) {
-            completions.addAll(List.of("solo", "team", "practice", "cancel", "status", "stats", "top", "spectate"));
+            completions.addAll(List.of("solo", "team", "practice", "cancel", "status", "stats", "top", "history", "spectate"));
         } else if (args.length == 2) {
             String sub = args[0].toLowerCase();
             if ("top".equals(sub)) {
@@ -365,7 +446,7 @@ public class RankCommand implements CommandExecutor, TabCompleter {
                 for (Integer id : queueManager.getActiveMatches().keySet()) {
                     completions.add(String.valueOf(id));
                 }
-            } else if ("stats".equals(sub)) {
+            } else if ("history".equals(sub) || "stats".equals(sub)) {
                 // Online player names
                 for (Player p : Bukkit.getOnlinePlayers()) {
                     completions.add(p.getName());

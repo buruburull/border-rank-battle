@@ -313,3 +313,39 @@ maps:
       z: 0.0
     border_radius: 50
     description: "標準的なアリーナ。バランスの取れた地形。"
+
+  forest:
+    name: "フォレストフィールド"
+    world: world
+    spawn1:
+      x: 200.0
+      y: 70.0
+      z: 200.0
+    spawn2:
+      x: 170.0
+      y: 70.0
+      z: 200.0
+    spectate:
+      x: 185.0
+      y: 80.0
+      z: 200.0
+    border_radius: 40
+    description: "森林地帯。遮蔽物が多く、接近戦に有利。"
+
+  ruins:
+    name: "ルインズアリーナ"
+    world: world
+    spawn1:
+      x: -200.0
+      y: 68.0
+      z: -200.0
+    spawn2:
+      x: -230.0
+      y: 68.0
+      z: -200.0
+    spectate:
+      x: -215.0
+      y: 78.0
+      z: -200.0
+    border_radius: 45
+    description: "廃墟エリア。高低差と障害物が特徴。"

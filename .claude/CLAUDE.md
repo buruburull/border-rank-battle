@@ -97,7 +97,7 @@ butai-rank-battle/
 │   ├── BRBPlugin.java             # Main plugin class
 │   ├── command/
 │   │   ├── FrameCommand.java      # /frame (set/view/remove/list/preset)
-│   │   ├── RankCommand.java       # /rank (solo/team/practice/cancel/stats/top/spectate)
+│   │   ├── RankCommand.java       # /rank (solo/team/practice/cancel/stats/top/history/spectate)
 │   │   ├── TeamCommand.java       # /team (create/invite/accept/deny/leave/info)
 │   │   └── AdminCommand.java      # /bradmin (frame/forcestart/rp/season/map)
 │   ├── listener/
@@ -158,6 +158,7 @@ butai-rank-battle/
 | `/rank cancel` | キューキャンセル |
 | `/rank stats [player]` | 戦績表示 |
 | `/rank top [weapon]` | ランキングTOP10 |
+| `/rank history [player]` | マッチ履歴（直近10件） |
 | `/rank spectate [matchId]` | 試合観戦 |
 | `/rank spectate leave` | 観戦終了 |
 | `/team create <name>` | チーム作成（Bランク以上） |
