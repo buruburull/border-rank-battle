@@ -173,7 +173,7 @@ public class LobbyManager {
             Location loc = new Location(world, x, y, z, yaw, 0f);
 
             Villager villager = (Villager) world.spawnEntity(loc, EntityType.VILLAGER);
-            villager.setCustomName(name);
+            villager.setCustomName(null);
             villager.setCustomNameVisible(false);
             villager.setAI(false);
             villager.setInvulnerable(true);
