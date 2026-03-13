@@ -100,9 +100,6 @@ public class ArenaInstance {
     // Spectator location (from map config, or calculated from spawns)
     private Location spectateLocation;
 
-    // World border radius (from map config)
-    private int borderRadius = 50;
-
     // Lobby location for return
     private Location lobbyLocation;
 
@@ -143,9 +140,6 @@ public class ArenaInstance {
         this.spectateLocation = spectateLocation;
     }
 
-    public void setBorderRadius(int borderRadius) {
-        this.borderRadius = borderRadius;
-    }
 
     public void setEndCallback(MatchEndCallback callback) {
         this.endCallback = callback;
@@ -285,9 +279,6 @@ public class ArenaInstance {
                 p.playSound(p.getLocation(), org.bukkit.Sound.ENTITY_ENDER_DRAGON_GROWL, 0.5f, 1.5f);
             }
         }
-
-        // Apply world border around arena center
-        applyWorldBorder();
 
         // Start match timer (ticks every second)
         matchTimerTask = new BukkitRunnable() {
@@ -920,9 +911,6 @@ public class ArenaInstance {
         // Restore blocks changed during the match
         restoreBlocks();
 
-        // Reset world border
-        resetWorldBorder();
-
         // Remove boss bar
         if (bossBar != null) {
             bossBar.removeAll();
@@ -1312,39 +1300,4 @@ public class ArenaInstance {
         logger.info("Match #" + matchId + ": Restored " + count + " blocks.");
     }
 
-    /**
-     * Apply world border centered between spawn points with configured radius.
-     */
-    private void applyWorldBorder() {
-        if (spawn1 == null || spawn2 == null) return;
-        org.bukkit.World world = spawn1.getWorld();
-        if (world == null) return;
-
-        // Center between the two spawns
-        double centerX = (spawn1.getX() + spawn2.getX()) / 2.0;
-        double centerZ = (spawn1.getZ() + spawn2.getZ()) / 2.0;
-
-        org.bukkit.WorldBorder wb = world.getWorldBorder();
-        wb.setCenter(centerX, centerZ);
-        wb.setSize(borderRadius * 2.0);
-        wb.setDamageAmount(2.0);
-        wb.setDamageBuffer(1.0);
-        wb.setWarningDistance(5);
-
-        logger.info("Match #" + matchId + ": World border set at (" + centerX + ", " + centerZ
-                + ") radius=" + borderRadius);
-    }
-
-    /**
-     * Reset world border to default (very large).
-     */
-    private void resetWorldBorder() {
-        if (spawn1 == null) return;
-        org.bukkit.World world = spawn1.getWorld();
-        if (world == null) return;
-
-        org.bukkit.WorldBorder wb = world.getWorldBorder();
-        wb.reset();
-        logger.info("Match #" + matchId + ": World border reset.");
-    }
 }

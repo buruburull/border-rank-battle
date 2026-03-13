@@ -315,7 +315,6 @@ public class QueueManager {
                 Location spec = new Location(world, arenaMap.getSpectateX(), arenaMap.getSpectateY(), arenaMap.getSpectateZ());
                 match.setSpawnLocations(s1, s2);
                 match.setSpectateLocation(spec);
-                match.setBorderRadius(arenaMap.getBorderRadius());
                 match.setMapName(arenaMap.getName());
             }
         } else {
@@ -442,7 +441,6 @@ public class QueueManager {
                 Location spec = new Location(world, arenaMap.getSpectateX(), arenaMap.getSpectateY(), arenaMap.getSpectateZ());
                 match.setSpawnLocations(s1, s2);
                 match.setSpectateLocation(spec);
-                match.setBorderRadius(arenaMap.getBorderRadius());
                 match.setMapName(arenaMap.getName());
             }
         } else {
