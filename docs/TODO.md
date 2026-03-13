@@ -184,18 +184,18 @@
 - [x] 観戦者セット管理（参加者と独立）
 - [x] キュー中・試合中プレイヤーの観戦拒否
 
-### 16. プラクティスバトル
-- [ ] /rank practice コマンド
-- [ ] プラクティスキュー（ソロキューと別管理）
-- [ ] RP変動なし
-- [ ] 切断ペナルティ対象外
+### 16. プラクティスバトル（完了）
+- [x] /rank practice コマンド
+- [x] プラクティスキュー（ソロキューと別管理）
+- [x] RP変動なし
+- [x] 切断ペナルティ対象外
 
-### 17. シーズンシステム
-- [ ] /bradmin season start <name> コマンド
-- [ ] /bradmin season end コマンド
-- [ ] シーズン開始: seasonsテーブルにINSERT, is_active=true
-- [ ] シーズン終了: スナップショット保存 → 全RP1000リセット
-- [ ] season_snapshotsテーブル永続化
+### 17. シーズンシステム（完了）
+- [x] /bradmin season start <name> コマンド
+- [x] /bradmin season end コマンド
+- [x] シーズン開始: seasonsテーブルにINSERT, is_active=true
+- [x] シーズン終了: スナップショット保存 → 全RP1000リセット
+- [x] season_snapshotsテーブル永続化
 
 ### 18. 管理者コマンド（部分完了）
 - [x] /bradmin frame reload（frames.yml再読み込み）

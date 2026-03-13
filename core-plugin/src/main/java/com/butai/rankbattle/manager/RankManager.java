@@ -176,6 +176,27 @@ public class RankManager {
         return playerCache.size();
     }
 
+    /**
+     * Reset all cached players' RP to 1000 and recalculate ranks.
+     * Called after season end DB reset.
+     */
+    public void resetAllCachedRP() {
+        for (BRBPlayer player : playerCache.values()) {
+            for (WeaponType wt : WeaponType.values()) {
+                player.getWeaponRP(wt).setRp(1000);
+            }
+            player.recalculateRank();
+            playerDAO.updateRankClass(player.getUuid(), player.getRankClass().name());
+        }
+    }
+
+    /**
+     * Get the PlayerDAO (for season operations).
+     */
+    public PlayerDAO getPlayerDAO() {
+        return playerDAO;
+    }
+
     // ==================== Team Management ====================
 
     /**

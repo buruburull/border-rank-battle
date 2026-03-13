@@ -3,6 +3,7 @@ package com.butai.rankbattle;
 import com.butai.rankbattle.database.DatabaseManager;
 import com.butai.rankbattle.database.FrameSetDAO;
 import com.butai.rankbattle.database.PlayerDAO;
+import com.butai.rankbattle.database.SeasonDAO;
 import com.butai.rankbattle.database.TeamDAO;
 import com.butai.rankbattle.command.AdminCommand;
 import com.butai.rankbattle.command.FrameCommand;
@@ -131,6 +132,8 @@ public class BRBPlugin extends JavaPlugin {
         }
 
         AdminCommand adminCommand = new AdminCommand(rankManager, queueManager, frameRegistry);
+        SeasonDAO seasonDAO = new SeasonDAO(databaseManager, log);
+        adminCommand.setSeasonDAO(seasonDAO);
         PluginCommand adminCmdObj = getCommand("bradmin");
         if (adminCmdObj != null) {
             adminCmdObj.setExecutor(adminCommand);

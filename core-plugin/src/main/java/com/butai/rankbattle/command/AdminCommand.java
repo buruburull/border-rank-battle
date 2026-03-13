@@ -1,5 +1,6 @@
 package com.butai.rankbattle.command;
 
+import com.butai.rankbattle.database.SeasonDAO;
 import com.butai.rankbattle.manager.FrameRegistry;
 import com.butai.rankbattle.manager.QueueManager;
 import com.butai.rankbattle.manager.RankManager;
@@ -27,11 +28,16 @@ public class AdminCommand implements CommandExecutor, TabCompleter {
     private final RankManager rankManager;
     private final QueueManager queueManager;
     private final FrameRegistry frameRegistry;
+    private SeasonDAO seasonDAO;
 
     public AdminCommand(RankManager rankManager, QueueManager queueManager, FrameRegistry frameRegistry) {
         this.rankManager = rankManager;
         this.queueManager = queueManager;
         this.frameRegistry = frameRegistry;
+    }
+
+    public void setSeasonDAO(SeasonDAO seasonDAO) {
+        this.seasonDAO = seasonDAO;
     }
 
     @Override
@@ -51,6 +57,7 @@ public class AdminCommand implements CommandExecutor, TabCompleter {
             case "frame" -> handleFrame(sender, args);
             case "forcestart" -> handleForceStart(sender);
             case "rp" -> handleRP(sender, args);
+            case "season" -> handleSeason(sender, args);
             default -> {
                 sendUsage(sender);
                 yield true;
@@ -192,12 +199,110 @@ public class AdminCommand implements CommandExecutor, TabCompleter {
         return true;
     }
 
+    private boolean handleSeason(CommandSender sender, String[] args) {
+        if (seasonDAO == null) {
+            sender.sendMessage("§cシーズンシステムが初期化されていません。");
+            return true;
+        }
+
+        if (args.length < 2) {
+            sender.sendMessage("§e使用法:");
+            sender.sendMessage("  §f/bradmin season start <name> §7- シーズン開始");
+            sender.sendMessage("  §f/bradmin season end §7- シーズン終了");
+            return true;
+        }
+
+        String seasonSub = args[1].toLowerCase();
+        return switch (seasonSub) {
+            case "start" -> handleSeasonStart(sender, args);
+            case "end" -> handleSeasonEnd(sender);
+            default -> {
+                sender.sendMessage("§e使用法: /bradmin season start <name> | end");
+                yield true;
+            }
+        };
+    }
+
+    private boolean handleSeasonStart(CommandSender sender, String[] args) {
+        if (args.length < 3) {
+            sender.sendMessage("§e使用法: /bradmin season start <name>");
+            return true;
+        }
+
+        String name = args[2];
+
+        // Check if name already exists
+        if (seasonDAO.seasonNameExists(name)) {
+            sender.sendMessage("§cシーズン名 '" + name + "' は既に使用されています。");
+            return true;
+        }
+
+        // Check if there's an active season
+        String activeName = seasonDAO.getActiveSeasonName();
+        if (activeName != null) {
+            sender.sendMessage("§e警告: 現在のシーズン '" + activeName + "' を終了して新シーズンを開始します。");
+        }
+
+        int seasonId = seasonDAO.createSeason(name);
+        if (seasonId < 0) {
+            sender.sendMessage("§cシーズンの作成に失敗しました。");
+            return true;
+        }
+
+        sender.sendMessage("§a[Admin] §fシーズン '" + name + "' §aを開始しました。 §7(ID: " + seasonId + ")");
+
+        // Notify all online players
+        for (Player p : Bukkit.getOnlinePlayers()) {
+            MessageUtil.send(p, "§6§l★ 新シーズン §f§l" + name + " §6§lが開始されました！");
+        }
+
+        return true;
+    }
+
+    private boolean handleSeasonEnd(CommandSender sender) {
+        int seasonId = seasonDAO.getActiveSeasonId();
+        if (seasonId < 0) {
+            sender.sendMessage("§cアクティブなシーズンがありません。");
+            return true;
+        }
+
+        String seasonName = seasonDAO.getActiveSeasonName();
+
+        sender.sendMessage("§eシーズン '" + seasonName + "' を終了しています...");
+
+        // 1. Save snapshots
+        int snapshotCount = seasonDAO.saveAllSnapshots(seasonId);
+        sender.sendMessage("§7スナップショット保存: §f" + snapshotCount + " §7件");
+
+        // 2. End season in DB
+        seasonDAO.endSeason(seasonId);
+
+        // 3. Reset all RP in DB
+        rankManager.getPlayerDAO().resetAllRP();
+
+        // 4. Reset all cached players' RP
+        rankManager.resetAllCachedRP();
+
+        sender.sendMessage("§a[Admin] §fシーズン '" + seasonName + "' §aを終了しました。");
+        sender.sendMessage("§7全プレイヤーのRPが1000にリセットされました。");
+
+        // Notify all online players
+        for (Player p : Bukkit.getOnlinePlayers()) {
+            MessageUtil.send(p, "§6§l★ シーズン §f§l" + seasonName + " §6§lが終了しました！");
+            MessageUtil.send(p, "§7全プレイヤーのRPがリセットされました。");
+        }
+
+        return true;
+    }
+
     private void sendUsage(CommandSender sender) {
         sender.sendMessage("§6/bradmin コマンド一覧:");
         sender.sendMessage("  §e/bradmin frame reload §7- frames.yml再読み込み");
         sender.sendMessage("  §e/bradmin forcestart §7- キュー強制開始");
         sender.sendMessage("  §e/bradmin rp set <player> <weapon> <value> §7- RP設定");
         sender.sendMessage("  §e/bradmin rp info <player> §7- RP情報表示");
+        sender.sendMessage("  §e/bradmin season start <name> §7- シーズン開始");
+        sender.sendMessage("  §e/bradmin season end §7- シーズン終了");
     }
 
     @Override
@@ -207,12 +312,13 @@ public class AdminCommand implements CommandExecutor, TabCompleter {
         if (!sender.hasPermission("brb.admin")) return completions;
 
         if (args.length == 1) {
-            completions.addAll(List.of("frame", "forcestart", "rp"));
+            completions.addAll(List.of("frame", "forcestart", "rp", "season"));
         } else if (args.length == 2) {
             String sub = args[0].toLowerCase();
             switch (sub) {
                 case "frame" -> completions.add("reload");
                 case "rp" -> completions.addAll(List.of("set", "info"));
+                case "season" -> completions.addAll(List.of("start", "end"));
             }
         } else if (args.length == 3) {
             String sub = args[0].toLowerCase();
