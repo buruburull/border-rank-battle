@@ -21,7 +21,10 @@ import org.bukkit.Location;
 import org.bukkit.World;
 import org.bukkit.command.PluginCommand;
 import org.bukkit.configuration.file.FileConfiguration;
+import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.plugin.java.JavaPlugin;
+
+import java.io.File;
 
 import java.util.logging.Logger;
 
@@ -89,9 +92,8 @@ public class BRBPlugin extends JavaPlugin {
         // Initialize EtherManager
         etherManager = new EtherManager(this, log);
         // Set lobby location from frames.yml
-        File framesFile = new java.io.File(getDataFolder(), "frames.yml");
-        org.bukkit.configuration.file.YamlConfiguration framesConfig =
-                org.bukkit.configuration.file.YamlConfiguration.loadConfiguration(framesFile);
+        File framesFile = new File(getDataFolder(), "frames.yml");
+        YamlConfiguration framesConfig = YamlConfiguration.loadConfiguration(framesFile);
         String lobbyWorld = framesConfig.getString("lobby.world", "world");
         World world = getServer().getWorld(lobbyWorld);
         if (world != null) {
