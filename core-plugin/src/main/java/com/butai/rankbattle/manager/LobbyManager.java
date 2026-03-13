@@ -174,7 +174,7 @@ public class LobbyManager {
 
             Villager villager = (Villager) world.spawnEntity(loc, EntityType.VILLAGER);
             villager.setCustomName(name);
-            villager.setCustomNameVisible(true);
+            villager.setCustomNameVisible(false);
             villager.setAI(false);
             villager.setInvulnerable(true);
             villager.setSilent(true);
