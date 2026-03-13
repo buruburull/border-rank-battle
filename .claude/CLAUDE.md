@@ -195,6 +195,8 @@ butai-rank-battle/
 - **E-Shift must NOT kill player**: Must teleport directly to lobby (not death). Call `match.onPlayerEliminated(uuid)` for match processing
 - **Server memory**: e2-medium needs -Xmx3G. Reducing to 2G causes connection timeouts
 - **エーテル操作は必ずEtherManager経由**: 直接減算禁止
+- **ロビー座標はEtherManager.getLobbyLocation()経由で取得**: `plugin.getConfig()`はconfig.yml（DB設定のみ）を返すため、frames.ymlのlobby座標は取得できない
+- **NPC VillagerのCustomNameはnull**: 名前表示はTextDisplayで行う。CustomNameを設定するとホログラムと重複表示される
 
 ### Deployment
 - サーバーはPterodactylパネルから再起動する（screenは使用しない）

@@ -431,9 +431,10 @@ coefficient = 1.0 + (敗北チーム平均RP - 勝利チーム平均RP) / 1000
 
 NPC設定:
 - AI無効、無敵、サイレント
-- PersistentDataContainerでタグ管理
-- 名前表示 + サブタイトル（「§7右クリックで参加」等）
-- 座標・向きはconfigで設定可能
+- PersistentDataContainerでタグ管理（NPC_KEY にコマンド文字列を格納）
+- Villager自体のCustomNameはnull（重複表示防止）
+- 名前+サブタイトルはTextDisplayエンティティで頭上に表示（Billboard.CENTER）
+- 座標・向きはframes.ymlで設定可能
 
 ### 6.3 ホログラム
 
