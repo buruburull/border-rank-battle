@@ -830,9 +830,9 @@ public class ArenaInstance {
         int loserRP = loserData.getWeaponRP(loserWeapon).getRp();
 
         // Calculate RP changes (asymmetric Elo)
-        int[] rpChanges = rankManager.calculateRP(winnerRP, loserRP);
-        int winnerGain = rpChanges[0];
-        int loserLoss = rpChanges[1];
+        int[] rpCalc = rankManager.calculateRP(winnerRP, loserRP);
+        int winnerGain = rpCalc[0];
+        int loserLoss = rpCalc[1];
 
         // Apply to winner
         rankManager.applyMatchResult(winner, winnerWeapon, winnerGain, true);
