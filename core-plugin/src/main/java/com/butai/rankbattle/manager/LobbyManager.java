@@ -16,6 +16,9 @@ import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.scheduler.BukkitRunnable;
 import org.bukkit.scheduler.BukkitTask;
 
+import org.bukkit.configuration.file.YamlConfiguration;
+
+import java.io.File;
 import java.util.*;
 import java.util.logging.Logger;
 
@@ -24,6 +27,7 @@ import java.util.logging.Logger;
  * - Spawns NPCs (Villagers) with PDC tags for click handling
  * - Spawns TextDisplay holograms (welcome banner + ranking TOP10)
  * - Updates action bar with player status every 2 seconds
+ * - All settings are loaded from frames.yml (not config.yml)
  */
 public class LobbyManager {
 
@@ -32,6 +36,7 @@ public class LobbyManager {
 
     private final BRBPlugin plugin;
     private final Logger logger;
+    private YamlConfiguration framesConfig;
 
     private Location lobbyLocation;
     private final List<UUID> spawnedNPCs = new ArrayList<>();
@@ -43,6 +48,14 @@ public class LobbyManager {
     public LobbyManager(BRBPlugin plugin, Logger logger) {
         this.plugin = plugin;
         this.logger = logger;
+        // Load frames.yml
+        File framesFile = new File(plugin.getDataFolder(), "frames.yml");
+        if (framesFile.exists()) {
+            this.framesConfig = YamlConfiguration.loadConfiguration(framesFile);
+        } else {
+            logger.warning("frames.yml not found, lobby features disabled.");
+            this.framesConfig = new YamlConfiguration();
+        }
     }
 
     /**
@@ -101,17 +114,17 @@ public class LobbyManager {
     // ========== Lobby Location ==========
 
     private void loadLobbyLocation() {
-        String worldName = plugin.getConfig().getString("lobby.world", "world");
+        String worldName = framesConfig.getString("lobby.world", "world");
         World world = Bukkit.getWorld(worldName);
         if (world == null) {
             logger.warning("Lobby world '" + worldName + "' not found, using default spawn.");
             world = Bukkit.getWorlds().get(0);
         }
-        double x = plugin.getConfig().getDouble("lobby.x", world.getSpawnLocation().getX());
-        double y = plugin.getConfig().getDouble("lobby.y", world.getSpawnLocation().getY());
-        double z = plugin.getConfig().getDouble("lobby.z", world.getSpawnLocation().getZ());
-        float yaw = (float) plugin.getConfig().getDouble("lobby.yaw", 0.0);
-        float pitch = (float) plugin.getConfig().getDouble("lobby.pitch", 0.0);
+        double x = framesConfig.getDouble("lobby.x", world.getSpawnLocation().getX());
+        double y = framesConfig.getDouble("lobby.y", world.getSpawnLocation().getY());
+        double z = framesConfig.getDouble("lobby.z", world.getSpawnLocation().getZ());
+        float yaw = (float) framesConfig.getDouble("lobby.yaw", 0.0);
+        float pitch = (float) framesConfig.getDouble("lobby.pitch", 0.0);
         lobbyLocation = new Location(world, x, y, z, yaw, pitch);
     }
 
@@ -135,7 +148,7 @@ public class LobbyManager {
      * Spawn NPC villagers from config.
      */
     private void spawnNPCs() {
-        ConfigurationSection npcsSection = plugin.getConfig().getConfigurationSection("npcs");
+        ConfigurationSection npcsSection = framesConfig.getConfigurationSection("npcs");
         if (npcsSection == null) {
             logger.warning("No NPCs configured in config.yml");
             return;
@@ -194,7 +207,7 @@ public class LobbyManager {
     // ========== Hologram Management ==========
 
     private void spawnHolograms() {
-        ConfigurationSection holoSection = plugin.getConfig().getConfigurationSection("holograms");
+        ConfigurationSection holoSection = framesConfig.getConfigurationSection("holograms");
         if (holoSection == null) return;
 
         // Welcome banner
@@ -273,10 +286,10 @@ public class LobbyManager {
     // ========== Action Bar ==========
 
     private void startActionBarLoop() {
-        if (!plugin.getConfig().getBoolean("actionbar.enabled", true)) return;
+        if (!framesConfig.getBoolean("actionbar.enabled", true)) return;
 
-        int interval = plugin.getConfig().getInt("actionbar.update_interval", 40);
-        String format = plugin.getConfig().getString("actionbar.format",
+        int interval = framesConfig.getInt("actionbar.update_interval", 40);
+        String format = framesConfig.getString("actionbar.format",
                 "§6ランク: {rank} §8| §bRP: §f{rp} §8| §7{status}");
 
         actionBarTask = new BukkitRunnable() {
@@ -313,7 +326,7 @@ public class LobbyManager {
     }
 
     private void startRankingUpdateLoop() {
-        ConfigurationSection ranking = plugin.getConfig().getConfigurationSection("holograms.ranking");
+        ConfigurationSection ranking = framesConfig.getConfigurationSection("holograms.ranking");
         if (ranking == null) return;
 
         int interval = ranking.getInt("update_interval", 600);

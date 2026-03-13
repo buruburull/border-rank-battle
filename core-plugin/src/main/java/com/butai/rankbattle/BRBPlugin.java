@@ -88,13 +88,16 @@ public class BRBPlugin extends JavaPlugin {
 
         // Initialize EtherManager
         etherManager = new EtherManager(this, log);
-        // Set lobby location from config or world spawn
-        String lobbyWorld = config.getString("lobby.world", "world");
+        // Set lobby location from frames.yml
+        File framesFile = new java.io.File(getDataFolder(), "frames.yml");
+        org.bukkit.configuration.file.YamlConfiguration framesConfig =
+                org.bukkit.configuration.file.YamlConfiguration.loadConfiguration(framesFile);
+        String lobbyWorld = framesConfig.getString("lobby.world", "world");
         World world = getServer().getWorld(lobbyWorld);
         if (world != null) {
-            double lx = config.getDouble("lobby.x", world.getSpawnLocation().getX());
-            double ly = config.getDouble("lobby.y", world.getSpawnLocation().getY());
-            double lz = config.getDouble("lobby.z", world.getSpawnLocation().getZ());
+            double lx = framesConfig.getDouble("lobby.x", world.getSpawnLocation().getX());
+            double ly = framesConfig.getDouble("lobby.y", world.getSpawnLocation().getY());
+            double lz = framesConfig.getDouble("lobby.z", world.getSpawnLocation().getZ());
             etherManager.setLobbyLocation(new Location(world, lx, ly, lz));
         }
         // Tick loop will be started per-match (not globally at startup)
