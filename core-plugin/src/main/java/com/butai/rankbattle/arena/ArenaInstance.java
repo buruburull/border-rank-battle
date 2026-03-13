@@ -1019,21 +1019,7 @@ public class ArenaInstance {
         }
         obj.getScore("§f生存: §a" + alive + " §7/ §f" + total).setScore(line--);
 
-        // Ether per player
-        for (UUID uuid : players) {
-            Player p = Bukkit.getPlayer(uuid);
-            if (p == null) continue;
-            String name = p.getName();
-            if (name.length() > 10) name = name.substring(0, 10);
-            if (eliminated.contains(uuid)) {
-                obj.getScore("§c✖ " + name).setScore(line--);
-            } else {
-                int ether = etherManager.getEther(uuid);
-                String etherColor = ether <= 100 ? "§c" : ether <= 200 ? "§e" : "§b";
-                obj.getScore("§a● " + name + " " + etherColor + ether).setScore(line--);
-            }
-            if (line <= 0) break;
-        }
+        obj.getScore("§8─────────§r").setScore(line--);
     }
 
     /**
